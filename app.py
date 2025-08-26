@@ -1,4 +1,6 @@
 # Vale Mastering Assistant - Streamlit Prototype
+from core import analyze_audio, build_filtergraph, render_variant, clamp
+# and update calls accordingly (names match your current app).
 import os, json, tempfile, subprocess
 import numpy as np
 import soundfile as sf
