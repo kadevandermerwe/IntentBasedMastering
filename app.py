@@ -3,9 +3,9 @@ from core import analyze_audio, build_filtergraph, render_variant, clamp
 # and update calls accordingly (names match your current app).
 import os, json, tempfile, subprocess
 import numpy as np
+from scipy.signal import resample_poly
 import soundfile as sf
 import pyloudnorm as pyln
-import librosa
 import streamlit as st
 
 try:
@@ -27,7 +27,7 @@ def analyze_audio(path):
     if y.ndim > 1: y = y.mean(axis=1)
     meter = pyln.Meter(sr)
     lufs = float(meter.integrated_loudness(y))
-    y_os = librosa.resample(y.astype(np.float32), sr, sr*4, res_type="kaiser_best")
+    y_os = resample_poly(y.astype(np.float32), 4, 1)  # 4× oversample
     tp = float(20*np.log10(np.max(np.abs(y_os))+1e-12))
     S = np.abs(librosa.stft(y, n_fft=2048, hop_length=1024))
     freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
