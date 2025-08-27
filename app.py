@@ -1,5 +1,5 @@
-# Vale Mastering Assistant — AI + Adaptive Mastering (drop/verse aware, improved)
-import os, json, subprocess, uuid
+# Vale Mastering Assistant — AI + Adaptive Mastering (drop/verse aware, REST LLM)
+import os, json, subprocess, uuid, requests
 import numpy as np
 import soundfile as sf
 import streamlit as st
@@ -154,31 +154,6 @@ def build_fg_heuristic(analysis, intent, variant="vibe"):
     }
     return mb + eq + sat + loud, params
 
-# ---------------- Adaptive Heuristic ----------------
-def build_fg_adaptive_heuristic(analysis, is_drop: bool):
-    target_lufs = -11.5 if is_drop else -13.0
-    target_tp   = -1.2
-    lo_thr, mid_thr, hi_thr = (-20,-23,-25) if is_drop else (-18,-22,-24)
-    lo_ratio, mid_ratio, hi_ratio = (2.0,1.5,1.3) if is_drop else (1.8,1.4,1.2)
-    lo_gain = 0.0 if analysis["spectral_pct"]["low"] >= 30.0 else 0.6
-    mud_cut = -0.8 if analysis["spectral_pct"]["mid"] > 55.0 else 0.0
-    hi_gain = 0.8
-    mb = (
-      "asplit=3[lo][mid][hi];"
-      f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio={lo_ratio}:attack=12:release=180[loC];"
-      f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio={mid_ratio}:attack=18:release=220[midC];"
-      f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio={hi_ratio}:attack=12:release=180[hiC];"
-      "[loC][midC][hiC]amix=inputs=3[mb];"
-    )
-    eq = (
-      "[mb]"
-      f"firequalizer=gain='if(lt(f,120),{lo_gain}, if(lt(f,300),{mud_cut}, if(gt(f,12000),{hi_gain},0)))'"
-      "[eq];"
-    )
-    sat = "[eq]anull[sat];"
-    loud = f"[sat]loudnorm=I={target_lufs}:LRA=9:TP={target_tp}:dual_mono=true:linear=true[out]"
-    return mb + eq + sat + loud
-
 # ---------------- Renderer ----------------
 def render_variant(in_wav, out_wav, filtergraph):
     cmd = ["ffmpeg","-y","-hide_banner","-loglevel","error","-i",in_wav,"-filter_complex",filtergraph,"-map","[out]","-ar","44100","-ac","2",out_wav]
@@ -206,41 +181,14 @@ def render_adaptive_from_plans(in_wav, out_wav, verse_plan, drop_plan):
         for s in segments: f.write(f"file '{s}'\n")
     safe_run(["ffmpeg","-y","-hide_banner","-loglevel","error","-f","concat","-safe","0","-i",list_path,"-c","copy",out_wav])
 
-def render_adaptive_heuristic(in_wav, out_wav, analysis):
-    drops, total_dur = detect_sections(in_wav)
-    segments, cursor, idx = [], 0.0, 0
-    def cut_and_process(t0, t1, is_drop, i):
-        fg = build_fg_adaptive_heuristic(analysis, is_drop)
-        seg_out = os.path.join(os.path.dirname(out_wav), f"seg_h_{i:03d}.wav")
-        cmd = ["ffmpeg","-y","-hide_banner","-loglevel","error","-i",in_wav,
-               "-filter_complex", f"atrim=start={t0}:end={t1},asetpts=PTS-STARTPTS,{fg}",
-               "-map","[out]","-ar","44100","-ac","2",seg_out]
-        safe_run(cmd); return seg_out
-    for (d0, d1) in drops:
-        if d0 > cursor + 0.05:
-            segments.append(cut_and_process(cursor, d0, False, idx)); idx += 1
-        segments.append(cut_and_process(d0, d1, True, idx)); idx += 1
-        cursor = d1
-    if cursor < total_dur - 0.05:
-        segments.append(cut_and_process(cursor, total_dur, False, idx)); idx += 1
-    list_path = out_wav + ".txt"
-    with open(list_path,"w") as f:
-        for s in segments: f.write(f"file '{s}'\n")
-    safe_run(["ffmpeg","-y","-hide_banner","-loglevel","error","-f","concat","-safe","0","-i",list_path,"-c","copy",out_wav])
-
-# ---------------- LLM planner ----------------
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except Exception:
-    OPENAI_AVAILABLE = False
-
+# ---------------- LLM planner (REST) ----------------
 use_llm   = st.sidebar.checkbox("Use OpenAI LLM planner", value=True)
 llm_model = st.sidebar.text_input("OpenAI model", value="gpt-4o-mini")
 st.sidebar.caption("Set OPENAI_API_KEY in Streamlit secrets.")
 
 def llm_plan(analysis, intent, prompt, model):
-    if not (OPENAI_AVAILABLE and "OPENAI_API_KEY" in st.secrets and st.secrets["OPENAI_API_KEY"]):
+    api_key = st.secrets.get("OPENAI_API_KEY")
+    if not api_key:
         return None, "LLM disabled or missing key."
     system = """
 You are an expert mastering engineer.
@@ -281,35 +229,42 @@ Return VALID JSON ONLY.
 """.strip()
     user = f"ANALYSIS:{json.dumps(analysis)}\nINTENT:{json.dumps(intent)}\nREFERENCE:{prompt or ''}"
     try:
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        resp = client.chat.completions.create(
-            model=model, temperature=0.25,
-            messages=[{"role":"system","content":system},{"role":"user","content":user}]
+        resp = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model, "temperature": 0.25,
+                "messages":[{"role":"system","content":system},{"role":"user","content":user}]
+            }, timeout=45
         )
-        content = resp.choices[0].message.content.strip()
+        if resp.status_code != 200:
+            return None, f"LLM HTTP {resp.status_code}: {resp.text[:300]}"
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"].strip()
         if content.startswith("```"):
-            content = content.strip().split("\n",1)[-1]
-            if content.endswith("```"):
-                content = content[:-3].strip()
-            if content.lower().startswith("json"):
-                content = content[4:].strip()
+            content = content.split("\n",1)[-1]
+            if content.endswith("```"): content = content[:-3].strip()
+            if content.lower().startswith("json"): content = content[4:].strip()
         start, end = content.find("{"), content.rfind("}")
+        if start == -1 or end == -1:
+            return None, "LLM returned no JSON."
         plan = json.loads(content[start:end+1])
         return plan, "LLM plan generated."
+    except requests.Timeout:
+        return None, "LLM timeout."
     except Exception as e:
         return None, f"LLM error: {e}"
 
 def derive_section_plans_from_single(base_plan):
     import copy
-    verse = copy.deepcopy(base_plan)
-    drop  = copy.deepcopy(base_plan)
-    verse["targets"]["lufs_i"] = float(clamp(verse["targets"].get("lufs_i", -11.5) - 1.0, -14.0, -9.0))
+    verse = copy.deepcopy(base_plan); drop = copy.deepcopy(base_plan)
+    verse["targets"]["lufs_i"] = float(clamp(verse["targets"].get("lufs_i",-11.5)-1.0,-14.0,-9.0))
     verse["targets"]["true_peak_db"] = float(min(-1.0, verse["targets"].get("true_peak_db", -1.2)))
-    for band in ["low_thr_db","mid_thr_db","high_thr_db"]:
-        verse["mb_comp"][band] = float(min(-18.0, verse["mb_comp"].get(band, -24) + 2))  # gentler
-    drop["targets"]["lufs_i"] = float(clamp(drop["targets"].get("lufs_i", -11.5) + 0.7, -14.0, -9.0))
+    for k in ["low_thr_db","mid_thr_db","high_thr_db"]:
+        verse.setdefault("mb_comp",{}); verse["mb_comp"][k] = float(min(-18.0, base_plan.get("mb_comp",{}).get(k, -24) + 2))
+    drop["targets"]["lufs_i"]  = float(clamp(drop["targets"].get("lufs_i",-11.5)+0.7,-14.0,-9.0))
     drop["targets"]["true_peak_db"] = float(min(-1.0, drop["targets"].get("true_peak_db", -1.2)))
-    drop["mb_comp"]["low_thr_db"]  = float(max(-30.0, drop["mb_comp"].get("low_thr_db", -20) - 2))  # tighter lows
+    drop.setdefault("mb_comp",{}); drop["mb_comp"]["low_thr_db"]  = float(max(-30.0, base_plan.get("mb_comp",{}).get("low_thr_db", -20) - 2))
     return verse, drop
 
 # ---------------- Sidebar / Controls ----------------
@@ -435,11 +390,57 @@ if "uploaded_bytes" in st.session_state:
                         st.download_button("Download AI Adaptive", f.read(), file_name="master_ai_adaptive.wav")
                 except Exception as e:
                     st.error("Adaptive render failed."); st.exception(e)
-            elif adaptive and not ai_plan:
-                # Heuristic adaptive fallback
+
+            # Heuristic adaptive fallback if no AI plan
+            if adaptive and not (verse_plan and drop_plan):
                 try:
+                    # simple heuristic adaptive if AI missing
+                    def build_fg_adaptive_heuristic(analysis, is_drop: bool):
+                        target_lufs = -11.5 if is_drop else -13.0
+                        target_tp   = -1.2
+                        lo_thr, mid_thr, hi_thr = (-20,-23,-25) if is_drop else (-18,-22,-24)
+                        lo_ratio, mid_ratio, hi_ratio = (2.0,1.5,1.3) if is_drop else (1.8,1.4,1.2)
+                        lo_gain = 0.0 if analysis["spectral_pct"]["low"] >= 30.0 else 0.6
+                        mud_cut = -0.8 if analysis["spectral_pct"]["mid"] > 55.0 else 0.0
+                        hi_gain = 0.8
+                        mb = (
+                          "asplit=3[lo][mid][hi];"
+                          f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio={lo_ratio}:attack=12:release=180[loC];"
+                          f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio={mid_ratio}:attack=18:release=220[midC];"
+                          f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio={hi_ratio}:attack=12:release=180[hiC];"
+                          "[loC][midC][hiC]amix=inputs=3[mb];"
+                        )
+                        eq = (
+                          "[mb]"
+                          f"firequalizer=gain='if(lt(f,120),{lo_gain}, if(lt(f,300),{mud_cut}, if(gt(f,12000),{hi_gain},0)))'"
+                          "[eq];"
+                        )
+                        sat = "[eq]anull[sat];"
+                        loud = f"[sat]loudnorm=I={target_lufs}:LRA=9:TP={target_tp}:dual_mono=true:linear=true[out]"
+                        return mb + eq + sat + loud
+
+                    # render
+                    drops, total_dur = detect_sections(in_path)
+                    segments, cursor, idx = [], 0.0, 0
+                    def cut_and_process(t0, t1, is_drop, i):
+                        fg = build_fg_adaptive_heuristic(analysis, is_drop)
+                        seg_out = os.path.join(base, f"seg_h_{i:03d}.wav")
+                        cmd = ["ffmpeg","-y","-hide_banner","-loglevel","error","-i",in_path,
+                               "-filter_complex", f"atrim=start={t0}:end={t1},asetpts=PTS-STARTPTS,{fg}",
+                               "-map","[out]","-ar","44100","-ac","2",seg_out]
+                        safe_run(cmd); return seg_out
+                    for (d0, d1) in drops:
+                        if d0 > cursor + 0.05:
+                            segments.append(cut_and_process(cursor, d0, False, idx)); idx += 1
+                        segments.append(cut_and_process(d0, d1, True, idx)); idx += 1
+                        cursor = d1
+                    if cursor < total_dur - 0.05:
+                        segments.append(cut_and_process(cursor, total_dur, False, idx)); idx += 1
+                    list_path = os.path.join(base, "concat_h.txt")
+                    with open(list_path,"w") as f:
+                        for s in segments: f.write(f"file '{s}'\n")
                     out_ad = os.path.join(base, "master_heuristic_adaptive.wav")
-                    render_adaptive_heuristic(in_path, out_ad, analysis)
+                    safe_run(["ffmpeg","-y","-hide_banner","-loglevel","error","-f","concat","-safe","0","-i",list_path,"-c","copy",out_ad])
                     post = analyze_audio(out_ad)
                     st.markdown("### 📈 Adaptive (Heuristic)")
                     st.json(post)
