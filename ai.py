@@ -1,12 +1,13 @@
-# ai.py
 import json
 from utils import clamp
 from dsp import BAND_NAMES
 import streamlit as st
+from openai import OpenAI
 
-# --- in ai.py (or wherever llm_plan lives) ---
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
 def llm_plan(analysis, intent, user_prompt, model, reference_txt="", reference_weight=0.0):
-    if not ("OPENAI_API_KEY" in st.secrets["OPENAI_API_KEY"]):
+    if "OPENAI_API_KEY" not in st.secrets or not st.secrets["OPENAI_API_KEY"]:
         return None, "LLM disabled or missing key."
 
     # Clamp weight to [0,1]
