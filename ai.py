@@ -2,6 +2,7 @@
 import json
 from utils import clamp
 from dsp import BAND_NAMES
+import streamlit as st
 
 # --- in ai.py (or wherever llm_plan lives) ---
 def llm_plan(analysis, intent, user_prompt, model, reference_txt="", reference_weight=0.0):
