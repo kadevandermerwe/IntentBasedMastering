@@ -7,6 +7,54 @@ BAND_NAMES = ["sub","low_bass","high_bass","low_mids","mids","high_mids","highs"
 BAND_EDGES = [20, 80, 120, 250, 500, 3500, 8000, 10000, 20000]
 # Bands: [20-80), [80-120), [120-250), [250-500), [500-3500), [3500-8000), [8000-10000), [10000-20000]
 
+def _clamp_db(x, lo=-2.0, hi=2.0):
+    try:
+        x = float(x)
+    except Exception:
+        x = 0.0
+    return max(lo, min(hi, x))
+
+def firequalizer_8band_expr(eq8: dict) -> str:
+    """
+    Build an FFmpeg firequalizer gain expression for 8 bands.
+    Expects keys: sub, low_bass, high_bass, low_mids, mids, high_mids, highs, air.
+    Returns the full filter string, e.g.:
+      firequalizer=gain='if(lt(f,80),..., ... )':zero_phase=on:accuracy=high
+    """
+    sub       = _clamp_db(eq8.get("sub", 0.0))
+    low_bass  = _clamp_db(eq8.get("low_bass", 0.0))
+    high_bass = _clamp_db(eq8.get("high_bass", 0.0))
+    low_mids  = _clamp_db(eq8.get("low_mids", 0.0))
+    mids      = _clamp_db(eq8.get("mids", 0.0))
+    high_mids = _clamp_db(eq8.get("high_mids", 0.0))
+    highs     = _clamp_db(eq8.get("highs", 0.0))
+    air       = _clamp_db(eq8.get("air", 0.0))
+
+    # Nested band selector (use < threshold, last band is "else")
+    gain_expr = (
+        "if(lt(f,80),{sub},"
+        " if(lt(f,120),{low_bass},"
+        "  if(lt(f,250),{high_bass},"
+        "   if(lt(f,500),{low_mids},"
+        "    if(lt(f,3500),{mids},"
+        "     if(lt(f,8000),{high_mids},"
+        "      if(lt(f,10000),{highs},{air})"
+        ")))))))"
+    ).format(
+        sub=f"{sub:.3f}",
+        low_bass=f"{low_bass:.3f}",
+        high_bass=f"{high_bass:.3f}",
+        low_mids=f"{low_mids:.3f}",
+        mids=f"{mids:.3f}",
+        high_mids=f"{high_mids:.3f}",
+        highs=f"{highs:.3f}",
+        air=f"{air:.3f}",
+    )
+
+    # Full firequalizer filter with safe options
+    return f"firequalizer=gain='{gain_expr}':zero_phase=on:accuracy=high"
+
+
 def _band_mask(freqs: np.ndarray, f_lo: float, f_hi: float) -> np.ndarray:
     return (freqs >= f_lo) & (freqs < f_hi)
 
@@ -111,22 +159,7 @@ def build_fg_from_plan(plan: dict) -> str:
     No heuristics. If plan misses eq/eq8, EQ stage is neutral.
     """
     tgt = plan.get("targets", {}) or {}
-    mb  = plan.get("mb_comp", {}) or {}
-    sat = plan.get("saturation", {}) or {}
-    eq8 = plan.get("eq8")
-    eq3 = plan.get("eq")
-
-    tgt_lufs = float(tgt.get("lufs_i", -11.5))
-    tgt_tp   = float(tgt.get("true_peak_db", -1.2))
-
-    lo_thr = float(mb.get("low_thr_db",  -20))
-    mid_thr= float(mb.get("mid_thr_db",  -24))
-    hi_thr = float(mb.get("high_thr_db", -26))
-
-    drive_db = float(sat.get("drive_db", 0.0))
-    drive_in = 1.0 + 0.1 * max(0.0, min(3.0, drive_db))
-
-    mb_chain = (
+     mb = (
       "asplit=3[lo][mid][hi];"
       f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio=2.0:attack=10:release=180[loC];"
       f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio=1.6:attack=16:release=220[midC];"
@@ -134,23 +167,32 @@ def build_fg_from_plan(plan: dict) -> str:
       "[loC][midC][hiC]amix=inputs=3[mb];"
     )
 
-    if isinstance(eq8, dict) and all(k in eq8 for k in BAND_NAMES):
-        eq_block = f"[mb]{firequalizer_from_eq8(eq8)}[eq];"
-    elif isinstance(eq3, dict):
-        lo_gain = float(eq3.get("low_shelf_db", 0.0))
-        mud_cut = float(eq3.get("mud_cut_db", 0.0))
-        hi_gain = float(eq3.get("high_shelf_db", 0.0))
-        eq_block = (
-          "[mb]"
-          f"firequalizer=gain='if(lt(f,120),{lo_gain:.3f}, if(lt(f,300),{mud_cut:.3f}, if(gt(f,12000),{hi_gain:.3f},0)))'"
-          "[eq];"
-        )
+    # --- 8-band EQ if provided; else fallback to legacy 3-band ---
+    if "eq8" in plan and isinstance(plan["eq8"], dict):
+        eq_filter = firequalizer_8band_expr(plan["eq8"])
     else:
-        eq_block = "[mb]anull[eq];"
+        # legacy 3-band fallback; keep if you want backward compatibility
+        lo_gain  = float(plan.get("eq", {}).get("low_shelf_db", 0.0))
+        mud_cut  = float(plan.get("eq", {}).get("mud_cut_db",   0.0))
+        hi_gain  = float(plan.get("eq", {}).get("high_shelf_db",0.0))
+        # clamp to ±2 dB
+        lo_gain = _clamp_db(lo_gain); mud_cut = _clamp_db(mud_cut); hi_gain = _clamp_db(hi_gain)
+        eq_filter = (
+            "[mb]"
+            f"firequalizer=gain='if(lt(f,120),{lo_gain:.3f},"
+            f" if(lt(f,300),{mud_cut:.3f},"
+            f"  if(gt(f,12000),{hi_gain:.3f},0)))'"
+            ":zero_phase=on:accuracy=high"
+        )
 
-    sat_block  = f"[eq]volume={drive_in:.3f}[sat];"
-    loud_block = f"[sat]loudnorm=I={tgt_lufs}:LRA=9:TP={tgt_tp}:dual_mono=true:linear=true[out]"
-    return mb_chain + eq_block + sat_block + loud_block
+    # chain it
+    eq = f"[mb]{eq_filter}[eq];"
+
+    # Saturation / pre-gain (or anull) then loudness stage
+    sat  = f"[eq]volume={drive_in}[sat];"  # or "[eq]anull[sat];"
+    loud = f"[sat]loudnorm=I={tgt_lufs}:LRA=9:TP={tgt_tp}:dual_mono=true:linear=true[out]"
+
+    return mb + eq + sat + loud
 
 def render_variant(in_wav: str, out_wav: str, filtergraph: str):
     cmd = [
