@@ -139,7 +139,7 @@ def build_fg(analysis, intent, variant="vibe"):
       f"[lo]lowpass=f=140,acompressor=threshold={lo_thr}dB:ratio=2:attack=20:release=200[loC];"
       f"[mid]bandpass=f=140:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio=1.8:attack=15:release=180[midC];"
       f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio=1.5:attack=10:release=150[hiC];"
-      "[loC][midC][hiC]amix=inputs=3:normalize=0[mb];"
+      "[loC][midC][hiC]amix=inputs=3[mb];"
     )
     eq = (
       "[mb]"
