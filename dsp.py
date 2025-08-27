@@ -159,7 +159,7 @@ def build_fg_from_plan(plan: dict) -> str:
     No heuristics. If plan misses eq/eq8, EQ stage is neutral.
     """
     tgt = plan.get("targets", {}) or {}
-     mb = (
+    mb = (
       "asplit=3[lo][mid][hi];"
       f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio=2.0:attack=10:release=180[loC];"
       f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio=1.6:attack=16:release=220[midC];"
