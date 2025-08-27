@@ -142,10 +142,12 @@ def build_fg(analysis, intent, variant="vibe"):
       "[loC][midC][hiC]amix=inputs=3[mb];"
     )
     eq = (
-      "[mb]"
-      f"firequalizer=gain='if(f<120,{lo_gain}, if(f<300,{mud_cut}, if(f>12000,{hi_gain},0)))'"
-      "[eq];"
-    )
+  "[mb]"
+  f"firequalizer=gain='if(lt(f,120),{lo_gain},"
+  f" if(lt(f,300),{mud_cut},"
+  f"  if(gt(f,12000),{hi_gain},0)))'"
+  "[eq];"
+)
     sat = f"[eq]alimiter=limit=1.0:level_in={drive_in}:level_out=1.0[sat];"
     loud = f"[sat]loudnorm=I={target_lufs}:LRA=7:TP={target_tp}:dual_mono=true:linear=true[out]"
 
