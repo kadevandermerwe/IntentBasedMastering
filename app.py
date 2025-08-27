@@ -1,9 +1,7 @@
 # Vale Mastering Assistant — AI + Adaptive Mastering (drop/verse aware)
-import os, json, tempfile, subprocess, math
+import os, json, subprocess, math, uuid
 import numpy as np
 import soundfile as sf
-import pyloudnorm as pyln
-import librosa
 import streamlit as st
 
 # ---------------- UI / page ----------------
@@ -11,7 +9,8 @@ st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", l
 st.title("🎛️ Vale Mastering Assistant — Prototype (AI + Adaptive)")
 
 # ---------------- Helpers ----------------
-def clamp(v, lo, hi): return max(lo, min(hi, v))
+def clamp(v, lo, hi): 
+    return max(lo, min(hi, v))
 
 def safe_run(cmd):
     try:
@@ -22,29 +21,48 @@ def safe_run(cmd):
         st.error(e)
         raise
 
+def session_tmp_path():
+    """Stable /tmp folder per Streamlit session; avoid TemporaryDirectory in session_state."""
+    sid = st.session_state.get("_session_id")
+    if not sid:
+        sid = str(uuid.uuid4())[:8]
+        st.session_state["_session_id"] = sid
+    base = f"/tmp/vale_{sid}"
+    os.makedirs(base, exist_ok=True)
+    return base
+
 # ---------------- Analysis ----------------
 def analyze_audio(path):
-    """LUFS-I, true-peak (x4 oversample), spectral pct."""
+    """LUFS-I, true-peak (x4 oversample), spectral pct. Lazy-import heavy libs."""
+    import pyloudnorm as pyln
+    import librosa
+
     y, sr = sf.read(path)
-    if y.ndim > 1: y = y.mean(axis=1)
+    if y.ndim > 1: 
+        y = y.mean(axis=1)
     y = y.astype(np.float32)
 
     meter = pyln.Meter(sr)
     lufs = float(meter.integrated_loudness(y))
 
+    # True-peak estimate (4x oversample)
     y_os = librosa.resample(y, orig_sr=sr, target_sr=sr*4, res_type="kaiser_best")
     tp = float(20*np.log10(np.max(np.abs(y_os)) + 1e-12))
 
+    # Rough spectral balance
     S = np.abs(librosa.stft(y, n_fft=2048, hop_length=1024))
     freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
-    low = S[(freqs < 120)].mean(); mid = S[(freqs >= 120) & (freqs < 5000)].mean(); high = S[(freqs >= 5000)].mean()
+    low = S[(freqs < 120)].mean()
+    mid = S[(freqs >= 120) & (freqs < 5000)].mean()
+    high = S[(freqs >= 5000)].mean()
     tot = low + mid + high + 1e-9
     spec = {"low": float(100*low/tot), "mid": float(100*mid/tot), "high": float(100*high/tot)}
     return {"sr": sr, "lufs_integrated": lufs, "true_peak_dbfs_est": tp, "spectral_pct": spec}
 
 # ---------------- Section detection ----------------
 def detect_sections(path, frame_ms=200, hop_ms=100, energy_sigma=1.0, min_len_s=4.0):
-    """Return (drop_spans, total_duration_sec) using short-term RMS thresholding."""
+    """Return (drop_spans, total_duration_sec) using short-term RMS thresholding. Lazy-import librosa."""
+    import librosa
     y, sr = librosa.load(path, sr=None, mono=True)
     frame = int(sr*frame_ms/1000); hop = int(sr*hop_ms/1000)
     rms = librosa.feature.rms(y=y, frame_length=frame, hop_length=hop)[0]
@@ -54,14 +72,17 @@ def detect_sections(path, frame_ms=200, hop_ms=100, energy_sigma=1.0, min_len_s=
 
     spans, start = [], None
     for i, on in enumerate(mask):
-        if on and start is None: start = t[i]
+        if on and start is None: 
+            start = t[i]
         if not on and start is not None:
             end = t[i]
-            if end - start >= min_len_s: spans.append((float(start), float(end)))
+            if end - start >= min_len_s: 
+                spans.append((float(start), float(end)))
             start = None
     if start is not None:
         end = float(t[-1])
-        if end - start >= min_len_s: spans.append((float(start), float(end)))
+        if end - start >= min_len_s: 
+            spans.append((float(start), float(end)))
     return spans, float(len(y)/sr)
 
 # ---------------- Intent parsing ----------------
@@ -76,13 +97,13 @@ def parse_prompt(txt):
     if any(k in p for k in ["mono","tight","focused","narrow"]): intent["stereo"] -= 0.3
     if any(k in p for k in ["tape","analog","saturation","glue","harmonic"]): intent["character"] += 0.6
     if any(k in p for k in ["clean","transparent","surgical"]): intent["character"] -= 0.6
-    for k in intent: intent[k] = float(clamp(intent[k], -1.0, 1.0))
+    for k in intent: 
+        intent[k] = float(clamp(intent[k], -1.0, 1.0))
     return intent
 
-# ---------------- FFmpeg builder ----------------
+# ---------------- FFmpeg builders ----------------
 def build_fg_from_plan(plan):
     """Translate a single plan dict -> FFmpeg filtergraph."""
-    # Pull values with safe defaults
     tgt_lufs = float(plan["targets"].get("lufs_i", -11.5))
     tgt_tp   = float(plan["targets"].get("true_peak_db", -1.2))
 
@@ -97,7 +118,6 @@ def build_fg_from_plan(plan):
     drive_db = float(plan["saturation"].get("drive_db", 1.0))
     drive_in = 1.0 + 0.1 * clamp(drive_db, 0.0, 3.0)
 
-    # Crossover points fixed & safe; amix without normalize; firequalizer uses lt()/gt()
     mb = (
       "asplit=3[lo][mid][hi];"
       f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio=2.5:attack=6:release=80[loC];"
@@ -114,7 +134,6 @@ def build_fg_from_plan(plan):
     loud = f"[sat]loudnorm=I={tgt_lufs}:LRA=7:TP={tgt_tp}:dual_mono=true:linear=true[out]"
     return mb + eq + sat + loud
 
-# ---------------- Heuristic fallback ----------------
 def build_fg_heuristic(analysis, intent, variant="vibe"):
     tone = float(intent["tone"]); dyn = float(intent["dynamics"]); char = float(intent["character"])
     target_lufs = {"conservative": -12.0, "vibe": -11.5, "loud": -10.5}.get(variant, -11.5)
@@ -140,7 +159,12 @@ def build_fg_heuristic(analysis, intent, variant="vibe"):
     )
     sat = f"[eq]volume={drive_in}[sat];"
     loud = f"[sat]loudnorm=I={target_lufs}:LRA=7:TP={target_tp}:dual_mono=true:linear=true[out]"
-    params = {"targets":{"lufs_i":target_lufs,"true_peak_db":target_tp},"eq":{"low_shelf_db":lo_gain,"mud_cut_db":mud_cut,"high_shelf_db":hi_gain}}
+    params = {
+        "targets":{"lufs_i":target_lufs,"true_peak_db":target_tp},
+        "eq":{"low_shelf_db":lo_gain,"mud_cut_db":mud_cut,"high_shelf_db":hi_gain},
+        "mb_thr":{"low":lo_thr,"mid":mid_thr,"high":hi_thr},
+        "saturation":{"pre_gain":drive_in}
+    }
     return mb + eq + sat + loud, params
 
 # ---------------- Renderer ----------------
@@ -238,7 +262,7 @@ Be subtle and musical. Return VALID JSON ONLY.
             messages=[{"role":"system","content":system},{"role":"user","content":user}]
         )
         content = resp.choices[0].message.content.strip()
-        if content.startswith("```"):  # strip fences if present
+        if content.startswith("```"):
             content = content.strip().split("\n",1)[-1]
             if content.endswith("```"): content = content[:-3].strip()
             if content.lower().startswith("json"): content = content[4:].strip()
@@ -248,32 +272,30 @@ Be subtle and musical. Return VALID JSON ONLY.
     except Exception as e:
         return None, f"LLM error: {e}"
 
-# ---------------- Derive section plans (fallback) ----------------
 def derive_section_plans_from_single(base_plan):
     """If LLM returns a single plan, derive gentler verse & tighter drop."""
-    # Deep copy
     import copy
     verse = copy.deepcopy(base_plan)
     drop  = copy.deepcopy(base_plan)
 
-    # Verse: a touch quieter & gentler low-band
     verse["targets"]["lufs_i"] = float(clamp(verse["targets"].get("lufs_i", -11.5) - 1.0, -14.0, -9.0))
     verse["targets"]["true_peak_db"] = float(min(-1.0, verse["targets"].get("true_peak_db", -1.2)))
     for band in ["low_thr_db","mid_thr_db","high_thr_db"]:
         verse["mb_comp"][band] = float(min(-18.0, verse["mb_comp"].get(band, -24) + 2))  # gentler
 
-    # Drop: a touch louder target & firmer low-band threshold
     drop["targets"]["lufs_i"] = float(clamp(drop["targets"].get("lufs_i", -11.5) + 0.7, -14.0, -9.0))
     drop["targets"]["true_peak_db"] = float(min(-1.0, drop["targets"].get("true_peak_db", -1.2)))
     drop["mb_comp"]["low_thr_db"]  = float(max(-30.0, drop["mb_comp"].get("low_thr_db", -20) - 2))  # tighter lows
-    # keep mids/highs similar
     return verse, drop
 
-# ---------------- Controls ----------------
+# ---------------- Sidebar / Controls ----------------
 adaptive = st.sidebar.checkbox("Adaptive per-section rendering", value=True)
 
-uploaded = st.file_uploader("Upload premaster (WAV/AIFF/FLAC — no limiter, ~−6 dBFS headroom)", type=["wav","aiff","aif","flac"])
-prompt_txt = st.text_area("Intent / Reference (e.g. “dark, preserve dynamics, tape; like Soma by Return of the Jaded.)”")
+uploaded = st.file_uploader(
+    "Upload premaster (WAV/AIFF/FLAC — no limiter, ~−6 dBFS headroom)",
+    type=["wav","aiff","aif","flac"]
+)
+prompt_txt = st.text_area("Intent / Reference (e.g. “dark, preserve dynamics, tape; like Soma by Return of the Jaded”.)")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -294,21 +316,25 @@ if prompt_txt:
 intent = {"tone": tone, "dynamics": dynamics, "stereo": stereo, "character": character}
 st.caption(f"Resolved intent → tone {tone:+.2f} • dynamics {dynamics:+.2f} • stereo {stereo:+.2f} • character {character:+.2f}")
 
-# ---------------- Upload & analysis (robust, persistent tmpdir) ----------------
+# ---------------- Upload & analysis (robust, stable /tmp) ----------------
 if uploaded is not None:
     if ("uploaded_name" not in st.session_state
         or uploaded.name != st.session_state.get("uploaded_name")
         or "uploaded_bytes" not in st.session_state):
         st.session_state["uploaded_name"] = uploaded.name
         st.session_state["uploaded_bytes"] = uploaded.read()
-        for k in ("analysis","in_path"): st.session_state.pop(k, None)
-
-if "tmpdir" not in st.session_state:
-    st.session_state["tmpdir"] = tempfile.TemporaryDirectory()
+        for k in ("analysis","in_path"): 
+            st.session_state.pop(k, None)
 
 if "uploaded_bytes" in st.session_state:
-    in_path = os.path.join(st.session_state["tmpdir"].name, st.session_state["uploaded_name"].replace(" ","_"))
-    with open(in_path,"wb") as f: f.write(st.session_state["uploaded_bytes"])
+    base = session_tmp_path()
+    in_path = os.path.join(base, st.session_state["uploaded_name"].replace(" ","_"))
+    try:
+        with open(in_path, "wb") as f:
+            f.write(st.session_state["uploaded_bytes"])
+    except Exception as e:
+        st.error("❌ Failed writing uploaded file to /tmp.")
+        st.exception(e); st.stop()
     st.session_state["in_path"] = in_path
 
     cols = st.columns(3)
@@ -318,7 +344,8 @@ if "uploaded_bytes" in st.session_state:
         gen_click = st.button("Generate Master(s)")
     with cols[2]:
         if st.button("Reset file"):
-            for k in ("uploaded_name","uploaded_bytes","analysis","in_path"): st.session_state.pop(k, None)
+            for k in ("uploaded_name","uploaded_bytes","analysis","in_path"):
+                st.session_state.pop(k, None)
             st.experimental_rerun()
 
     # Analysis
@@ -330,31 +357,32 @@ if "uploaded_bytes" in st.session_state:
 
     analysis = st.session_state.get("analysis")
     if analysis:
-        st.subheader("Analysis"); st.json(analysis)
+        st.subheader("Analysis"); 
+        st.json(analysis)
 
         # AI plan (optional)
         ai_plan, ai_msg = (None, None)
         if use_llm:
             ai_plan, ai_msg = llm_plan(analysis, intent, prompt_txt, llm_model)
             st.caption(ai_msg or "")
-            if ai_plan: st.subheader("AI Plan"); st.code(json.dumps(ai_plan, indent=2))
+            if ai_plan:
+                st.subheader("AI Plan")
+                st.code(json.dumps(ai_plan, indent=2))
 
         # Generate
         if gen_click:
-            td = st.session_state["tmpdir"].name
-
-            # If AI produced sectioned plans:
+            # Determine plans
             verse_plan = drop_plan = None
             if ai_plan and "verse" in ai_plan and "drop" in ai_plan:
                 verse_plan, drop_plan = ai_plan["verse"], ai_plan["drop"]
-            elif ai_plan:
+            elif ai_plan and "targets" in ai_plan:
                 verse_plan, drop_plan = derive_section_plans_from_single(ai_plan)
 
-            # Always render an AI master if plan exists (non-adaptive full pass)
+            # AI full-pass (single chain)
             if ai_plan:
                 try:
-                    fg_full = build_fg_from_plan(ai_plan if "targets" in ai_plan else verse_plan)  # if sectioned, just use verse as "full"
-                    out_ai = os.path.join(td, "master_ai_full.wav")
+                    fg_full = build_fg_from_plan(ai_plan if "targets" in ai_plan else verse_plan)
+                    out_ai = os.path.join(base, "master_ai_full.wav")
                     render_variant(in_path, out_ai, fg_full)
                     st.audio(out_ai)
                     with open(out_ai,"rb") as f:
@@ -362,31 +390,41 @@ if "uploaded_bytes" in st.session_state:
                 except Exception as e:
                     st.error("AI full-pass render failed."); st.exception(e)
 
-            # Adaptive render (per-section) if toggled and we have plans
+            # Adaptive AI (per-section)
             if adaptive and verse_plan and drop_plan:
                 try:
-                    out_ad = os.path.join(td, "master_ai_adaptive.wav")
+                    out_ad = os.path.join(base, "master_ai_adaptive.wav")
                     render_adaptive_from_plans(in_path, out_ad, verse_plan, drop_plan)
                     post = analyze_audio(out_ad)
-                    st.subheader("Adaptive (AI) post-check"); st.json(post)
+                    st.subheader("Adaptive (AI) post-check")
+                    st.json(post)
                     st.audio(out_ad)
                     with open(out_ad,"rb") as f:
                         st.download_button("Download AI Adaptive", f.read(), file_name="master_ai_adaptive.wav")
                 except Exception as e:
                     st.error("Adaptive render failed."); st.exception(e)
 
-            # Fallback heuristic masters (useful for A/B)
+            # Heuristic fallbacks (A/B reference)
             try:
                 for variant in ["conservative","vibe","loud"]:
                     fg, params = build_fg_heuristic(analysis, intent, variant)
-                    out_h = os.path.join(td, f"master_{variant}.wav")
+                    out_h = os.path.join(base, f"master_{variant}.wav")
                     render_variant(in_path, out_h, fg)
-                    st.markdown(f"**Heuristic — {variant.capitalize()}**"); st.json(params)
+                    st.markdown(f"**Heuristic — {variant.capitalize()}**")
+                    st.json(params)
                     st.audio(out_h)
                     with open(out_h,"rb") as f:
                         st.download_button(f"Download {variant}", f.read(), file_name=f"master_{variant}.wav")
             except Exception as e:
                 st.error("Fallback render failed."); st.exception(e)
+
+    # Optional tiny debug expander
+    with st.expander("Debug (upload)"):
+        st.write({
+            "in_path_exists": os.path.exists(st.session_state.get("in_path","")),
+            "in_path": st.session_state.get("in_path"),
+            "bytes_len": len(st.session_state.get("uploaded_bytes", b""))
+        })
 
 else:
     st.info("Upload a premaster to begin.")
