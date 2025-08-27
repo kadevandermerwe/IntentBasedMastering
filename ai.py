@@ -9,9 +9,7 @@ from openai import OpenAI
 def llm_plan(analysis, intent, user_prompt, model, reference_txt="", reference_weight=0.0):
     if "OPENAI_API_KEY" not in st.secrets or not st.secrets["OPENAI_API_KEY"]:
         return None, "LLM disabled or missing key."
-
     
-
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
     # Clamp weight to [0,1]
