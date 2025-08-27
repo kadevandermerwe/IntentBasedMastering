@@ -3,9 +3,7 @@ import streamlit as st
 from utils import clamp
 from dsp import BAND_NAMES
 
-from openai import OpenAI
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def llm_plan(analysis, intent, user_prompt, model, reference_txt="", reference_weight=0.0):
     if "OPENAI_API_KEY" not in st.secrets or not st.secrets["OPENAI_API_KEY"]:
