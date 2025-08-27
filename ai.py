@@ -1,7 +1,8 @@
 import json
+import streamlit as st
 from utils import clamp
 from dsp import BAND_NAMES
-import streamlit as st
+
 from openai import OpenAI
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
