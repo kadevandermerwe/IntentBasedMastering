@@ -1,4 +1,4 @@
-# Vale Mastering Assistant — AI + Adaptive Mastering (drop/verse aware, REST LLM)
+# Vale Mastering Assistant — AI + Adaptive Mastering (drop/verse aware, REST LLM, no aifc)
 import os, json, subprocess, uuid, requests
 import numpy as np
 import soundfile as sf
@@ -53,15 +53,29 @@ def analyze_audio(path):
     spec = {"low": float(100*low/tot), "mid": float(100*mid/tot), "high": float(100*high/tot)}
     return {"sr": sr, "lufs_integrated": lufs, "true_peak_dbfs_est": tp, "spectral_pct": spec}
 
-# ---------------- Section detection ----------------
+# ---------------- Section detection (uses soundfile to avoid audioread/aifc) ----------------
 def detect_sections(path, frame_ms=200, hop_ms=100, energy_sigma=1.0, min_len_s=4.0):
+    """
+    Return (drop_spans, total_duration_sec) using short-term RMS thresholding.
+    Read audio via soundfile (WAV/AIFF/FLAC) to avoid audioread→aifc on Python 3.13.
+    """
     import librosa
-    y, sr = librosa.load(path, sr=None, mono=True)
-    frame = int(sr*frame_ms/1000); hop = int(sr*hop_ms/1000)
-    rms = librosa.feature.rms(y=y, frame_length=frame, hop_length=hop)[0]
+
+    y, sr = sf.read(path)         # <— soundfile backend only
+    if y.ndim > 1:
+        y = y.mean(axis=1)
+    y = y.astype(np.float32)
+
+    frame = int(sr * frame_ms / 1000)
+    hop = int(sr * hop_ms / 1000)
+
+    # librosa for RMS + time mapping (math only, doesn't touch aifc)
+    rms = librosa.feature.rms(y=y, frame_length=frame, hop_length=hop, center=True)[0]
     t = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=hop, n_fft=frame)
+
     thr = rms.mean() + energy_sigma * rms.std()
     mask = rms > thr
+
     spans, start = [], None
     for i, on in enumerate(mask):
         if on and start is None:
@@ -75,7 +89,9 @@ def detect_sections(path, frame_ms=200, hop_ms=100, energy_sigma=1.0, min_len_s=
         end = float(t[-1])
         if end - start >= min_len_s:
             spans.append((float(start), float(end)))
-    return spans, float(len(y)/sr)
+
+    total_dur = float(len(y) / sr)
+    return spans, total_dur
 
 # ---------------- Intent parsing ----------------
 def parse_prompt(txt):
@@ -390,65 +406,6 @@ if "uploaded_bytes" in st.session_state:
                         st.download_button("Download AI Adaptive", f.read(), file_name="master_ai_adaptive.wav")
                 except Exception as e:
                     st.error("Adaptive render failed."); st.exception(e)
-
-            # Heuristic adaptive fallback if no AI plan
-            if adaptive and not (verse_plan and drop_plan):
-                try:
-                    # simple heuristic adaptive if AI missing
-                    def build_fg_adaptive_heuristic(analysis, is_drop: bool):
-                        target_lufs = -11.5 if is_drop else -13.0
-                        target_tp   = -1.2
-                        lo_thr, mid_thr, hi_thr = (-20,-23,-25) if is_drop else (-18,-22,-24)
-                        lo_ratio, mid_ratio, hi_ratio = (2.0,1.5,1.3) if is_drop else (1.8,1.4,1.2)
-                        lo_gain = 0.0 if analysis["spectral_pct"]["low"] >= 30.0 else 0.6
-                        mud_cut = -0.8 if analysis["spectral_pct"]["mid"] > 55.0 else 0.0
-                        hi_gain = 0.8
-                        mb = (
-                          "asplit=3[lo][mid][hi];"
-                          f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio={lo_ratio}:attack=12:release=180[loC];"
-                          f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio={mid_ratio}:attack=18:release=220[midC];"
-                          f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio={hi_ratio}:attack=12:release=180[hiC];"
-                          "[loC][midC][hiC]amix=inputs=3[mb];"
-                        )
-                        eq = (
-                          "[mb]"
-                          f"firequalizer=gain='if(lt(f,120),{lo_gain}, if(lt(f,300),{mud_cut}, if(gt(f,12000),{hi_gain},0)))'"
-                          "[eq];"
-                        )
-                        sat = "[eq]anull[sat];"
-                        loud = f"[sat]loudnorm=I={target_lufs}:LRA=9:TP={target_tp}:dual_mono=true:linear=true[out]"
-                        return mb + eq + sat + loud
-
-                    # render
-                    drops, total_dur = detect_sections(in_path)
-                    segments, cursor, idx = [], 0.0, 0
-                    def cut_and_process(t0, t1, is_drop, i):
-                        fg = build_fg_adaptive_heuristic(analysis, is_drop)
-                        seg_out = os.path.join(base, f"seg_h_{i:03d}.wav")
-                        cmd = ["ffmpeg","-y","-hide_banner","-loglevel","error","-i",in_path,
-                               "-filter_complex", f"atrim=start={t0}:end={t1},asetpts=PTS-STARTPTS,{fg}",
-                               "-map","[out]","-ar","44100","-ac","2",seg_out]
-                        safe_run(cmd); return seg_out
-                    for (d0, d1) in drops:
-                        if d0 > cursor + 0.05:
-                            segments.append(cut_and_process(cursor, d0, False, idx)); idx += 1
-                        segments.append(cut_and_process(d0, d1, True, idx)); idx += 1
-                        cursor = d1
-                    if cursor < total_dur - 0.05:
-                        segments.append(cut_and_process(cursor, total_dur, False, idx)); idx += 1
-                    list_path = os.path.join(base, "concat_h.txt")
-                    with open(list_path,"w") as f:
-                        for s in segments: f.write(f"file '{s}'\n")
-                    out_ad = os.path.join(base, "master_heuristic_adaptive.wav")
-                    safe_run(["ffmpeg","-y","-hide_banner","-loglevel","error","-f","concat","-safe","0","-i",list_path,"-c","copy",out_ad])
-                    post = analyze_audio(out_ad)
-                    st.markdown("### 📈 Adaptive (Heuristic)")
-                    st.json(post)
-                    st.audio(out_ad)
-                    with open(out_ad,"rb") as f:
-                        st.download_button("Download Adaptive (Heuristic)", f.read(), file_name="master_heuristic_adaptive.wav")
-                except Exception as e:
-                    st.error("Adaptive heuristic render failed."); st.exception(e)
 
             # Heuristic fallbacks (A/B reference)
             try:
