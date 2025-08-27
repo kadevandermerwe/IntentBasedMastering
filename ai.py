@@ -9,6 +9,10 @@ def llm_plan(analysis, intent, user_prompt, model, reference_txt="", reference_w
     if "OPENAI_API_KEY" not in st.secrets or not st.secrets["OPENAI_API_KEY"]:
         return None, "LLM disabled or missing key."
 
+    from openai import OpenAI
+
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
     # Clamp weight to [0,1]
     try:
         ref_w = float(reference_weight)
