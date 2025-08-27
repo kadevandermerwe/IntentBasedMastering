@@ -1,5 +1,5 @@
-# Vale Mastering Assistant — AI + Adaptive Mastering (drop/verse aware)
-import os, json, subprocess, math, uuid
+# Vale Mastering Assistant — AI + Adaptive Mastering (drop/verse aware, improved)
+import os, json, subprocess, uuid
 import numpy as np
 import soundfile as sf
 import streamlit as st
@@ -9,7 +9,7 @@ st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", l
 st.title("🎛️ Vale Mastering Assistant — Prototype (AI + Adaptive)")
 
 # ---------------- Helpers ----------------
-def clamp(v, lo, hi): 
+def clamp(v, lo, hi):
     return max(lo, min(hi, v))
 
 def safe_run(cmd):
@@ -22,7 +22,6 @@ def safe_run(cmd):
         raise
 
 def session_tmp_path():
-    """Stable /tmp folder per Streamlit session; avoid TemporaryDirectory in session_state."""
     sid = st.session_state.get("_session_id")
     if not sid:
         sid = str(uuid.uuid4())[:8]
@@ -33,22 +32,17 @@ def session_tmp_path():
 
 # ---------------- Analysis ----------------
 def analyze_audio(path):
-    """LUFS-I, true-peak (x4 oversample), spectral pct. Lazy-import heavy libs."""
     import pyloudnorm as pyln
     import librosa
-
     y, sr = sf.read(path)
-    if y.ndim > 1: 
+    if y.ndim > 1:
         y = y.mean(axis=1)
     y = y.astype(np.float32)
-
     meter = pyln.Meter(sr)
     lufs = float(meter.integrated_loudness(y))
-
-    # True-peak estimate (4x oversample)
+    # True-peak estimate via 4x oversampling
     y_os = librosa.resample(y, orig_sr=sr, target_sr=sr*4, res_type="kaiser_best")
     tp = float(20*np.log10(np.max(np.abs(y_os)) + 1e-12))
-
     # Rough spectral balance
     S = np.abs(librosa.stft(y, n_fft=2048, hop_length=1024))
     freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
@@ -61,7 +55,6 @@ def analyze_audio(path):
 
 # ---------------- Section detection ----------------
 def detect_sections(path, frame_ms=200, hop_ms=100, energy_sigma=1.0, min_len_s=4.0):
-    """Return (drop_spans, total_duration_sec) using short-term RMS thresholding. Lazy-import librosa."""
     import librosa
     y, sr = librosa.load(path, sr=None, mono=True)
     frame = int(sr*frame_ms/1000); hop = int(sr*hop_ms/1000)
@@ -69,19 +62,18 @@ def detect_sections(path, frame_ms=200, hop_ms=100, energy_sigma=1.0, min_len_s=
     t = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=hop, n_fft=frame)
     thr = rms.mean() + energy_sigma * rms.std()
     mask = rms > thr
-
     spans, start = [], None
     for i, on in enumerate(mask):
-        if on and start is None: 
+        if on and start is None:
             start = t[i]
         if not on and start is not None:
             end = t[i]
-            if end - start >= min_len_s: 
+            if end - start >= min_len_s:
                 spans.append((float(start), float(end)))
             start = None
     if start is not None:
         end = float(t[-1])
-        if end - start >= min_len_s: 
+        if end - start >= min_len_s:
             spans.append((float(start), float(end)))
     return spans, float(len(y)/sr)
 
@@ -97,32 +89,27 @@ def parse_prompt(txt):
     if any(k in p for k in ["mono","tight","focused","narrow"]): intent["stereo"] -= 0.3
     if any(k in p for k in ["tape","analog","saturation","glue","harmonic"]): intent["character"] += 0.6
     if any(k in p for k in ["clean","transparent","surgical"]): intent["character"] -= 0.6
-    for k in intent: 
+    for k in intent:
         intent[k] = float(clamp(intent[k], -1.0, 1.0))
     return intent
 
 # ---------------- FFmpeg builders ----------------
 def build_fg_from_plan(plan):
-    """Translate a single plan dict -> FFmpeg filtergraph."""
     tgt_lufs = float(plan["targets"].get("lufs_i", -11.5))
     tgt_tp   = float(plan["targets"].get("true_peak_db", -1.2))
-
     lo_thr   = float(plan["mb_comp"].get("low_thr_db", -20))
     mid_thr  = float(plan["mb_comp"].get("mid_thr_db", -24))
     hi_thr   = float(plan["mb_comp"].get("high_thr_db", -26))
-
     lo_gain  = float(plan["eq"].get("low_shelf_db", 0.0))
     mud_cut  = float(plan["eq"].get("mud_cut_db", 0.0))
     hi_gain  = float(plan["eq"].get("high_shelf_db", 0.0))
-
     drive_db = float(plan["saturation"].get("drive_db", 1.0))
     drive_in = 1.0 + 0.1 * clamp(drive_db, 0.0, 3.0)
-
     mb = (
       "asplit=3[lo][mid][hi];"
-      f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio=2.5:attack=6:release=80[loC];"
-      f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio=1.7:attack=15:release=180[midC];"
-      f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio=1.4:attack=12:release=150[hiC];"
+      f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio=2.0:attack=10:release=180[loC];"
+      f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio=1.6:attack=16:release=220[midC];"
+      f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio=1.3:attack=12:release=180[hiC];"
       "[loC][midC][hiC]amix=inputs=3[mb];"
     )
     eq = (
@@ -131,25 +118,25 @@ def build_fg_from_plan(plan):
       "[eq];"
     )
     sat  = f"[eq]volume={drive_in}[sat];"
-    loud = f"[sat]loudnorm=I={tgt_lufs}:LRA=7:TP={tgt_tp}:dual_mono=true:linear=true[out]"
+    loud = f"[sat]loudnorm=I={tgt_lufs}:LRA=9:TP={tgt_tp}:dual_mono=true:linear=true[out]"
     return mb + eq + sat + loud
 
 def build_fg_heuristic(analysis, intent, variant="vibe"):
     tone = float(intent["tone"]); dyn = float(intent["dynamics"]); char = float(intent["character"])
-    target_lufs = {"conservative": -12.0, "vibe": -11.5, "loud": -10.5}.get(variant, -11.5)
+    target_lufs = {"conservative": -13.0, "vibe": -12.0, "loud": -10.8}.get(variant, -12.0)
     target_tp   = -1.2
-    hi_gain = 1.5 * max(0.0, tone)
-    lo_gain = 0.0 if analysis["spectral_pct"]["low"] >= 30.0 else 0.8
-    mud_cut = -1.2 if analysis["spectral_pct"]["mid"] > 55.0 else 0.0
-    lo_thr, mid_thr, hi_thr = -20, -24, -26
-    if variant == "loud": lo_thr -= 2; mid_thr -= 2; hi_thr -= 2
+    hi_gain = 1.0 * max(0.0, tone)
+    lo_gain = 0.0 if analysis["spectral_pct"]["low"] >= 30.0 else 0.6
+    mud_cut = -0.8 if analysis["spectral_pct"]["mid"] > 55.0 else 0.0
+    lo_thr, mid_thr, hi_thr = -18, -22, -24
+    if variant == "loud": lo_thr -= 1; mid_thr -= 1; hi_thr -= 1
     if dyn < -0.33: lo_thr += 2; mid_thr += 2; hi_thr += 2
-    drive_in = 1.0 + 0.15 * max(0.0, char)
+    drive_in = 1.0 if variant != "loud" else 1.05
     mb = (
       "asplit=3[lo][mid][hi];"
-      f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio=2.5:attack=6:release=80[loC];"
-      f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio=1.7:attack=15:release=180[midC];"
-      f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio=1.4:attack=12:release=150[hiC];"
+      f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio=2.0:attack=10:release=180[loC];"
+      f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio=1.6:attack=16:release=220[midC];"
+      f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio=1.3:attack=12:release=180[hiC];"
       "[loC][midC][hiC]amix=inputs=3[mb];"
     )
     eq = (
@@ -157,8 +144,8 @@ def build_fg_heuristic(analysis, intent, variant="vibe"):
       f"firequalizer=gain='if(lt(f,120),{lo_gain}, if(lt(f,300),{mud_cut}, if(gt(f,12000),{hi_gain},0)))'"
       "[eq];"
     )
-    sat = f"[eq]volume={drive_in}[sat];"
-    loud = f"[sat]loudnorm=I={target_lufs}:LRA=7:TP={target_tp}:dual_mono=true:linear=true[out]"
+    sat = f"[eq]anull[sat];"
+    loud = f"[sat]loudnorm=I={target_lufs}:LRA=9:TP={target_tp}:dual_mono=true:linear=true[out]"
     params = {
         "targets":{"lufs_i":target_lufs,"true_peak_db":target_tp},
         "eq":{"low_shelf_db":lo_gain,"mud_cut_db":mud_cut,"high_shelf_db":hi_gain},
@@ -167,26 +154,46 @@ def build_fg_heuristic(analysis, intent, variant="vibe"):
     }
     return mb + eq + sat + loud, params
 
+# ---------------- Adaptive Heuristic ----------------
+def build_fg_adaptive_heuristic(analysis, is_drop: bool):
+    target_lufs = -11.5 if is_drop else -13.0
+    target_tp   = -1.2
+    lo_thr, mid_thr, hi_thr = (-20,-23,-25) if is_drop else (-18,-22,-24)
+    lo_ratio, mid_ratio, hi_ratio = (2.0,1.5,1.3) if is_drop else (1.8,1.4,1.2)
+    lo_gain = 0.0 if analysis["spectral_pct"]["low"] >= 30.0 else 0.6
+    mud_cut = -0.8 if analysis["spectral_pct"]["mid"] > 55.0 else 0.0
+    hi_gain = 0.8
+    mb = (
+      "asplit=3[lo][mid][hi];"
+      f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio={lo_ratio}:attack=12:release=180[loC];"
+      f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio={mid_ratio}:attack=18:release=220[midC];"
+      f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio={hi_ratio}:attack=12:release=180[hiC];"
+      "[loC][midC][hiC]amix=inputs=3[mb];"
+    )
+    eq = (
+      "[mb]"
+      f"firequalizer=gain='if(lt(f,120),{lo_gain}, if(lt(f,300),{mud_cut}, if(gt(f,12000),{hi_gain},0)))'"
+      "[eq];"
+    )
+    sat = "[eq]anull[sat];"
+    loud = f"[sat]loudnorm=I={target_lufs}:LRA=9:TP={target_tp}:dual_mono=true:linear=true[out]"
+    return mb + eq + sat + loud
+
 # ---------------- Renderer ----------------
 def render_variant(in_wav, out_wav, filtergraph):
     cmd = ["ffmpeg","-y","-hide_banner","-loglevel","error","-i",in_wav,"-filter_complex",filtergraph,"-map","[out]","-ar","44100","-ac","2",out_wav]
     safe_run(cmd)
 
 def render_adaptive_from_plans(in_wav, out_wav, verse_plan, drop_plan):
-    """Cut by energy → apply verse/drop plans per segment → concat."""
     drops, total_dur = detect_sections(in_wav)
     segments, cursor, idx = [], 0.0, 0
-
     def cut_and_process(t0, t1, plan, i):
         fg = build_fg_from_plan(plan)
         seg_out = os.path.join(os.path.dirname(out_wav), f"seg_{i:03d}.wav")
-        cmd = [
-            "ffmpeg","-y","-hide_banner","-loglevel","error","-i",in_wav,
-            "-filter_complex", f"atrim=start={t0}:end={t1},asetpts=PTS-STARTPTS,{fg}",
-            "-map","[out]","-ar","44100","-ac","2",seg_out
-        ]
+        cmd = ["ffmpeg","-y","-hide_banner","-loglevel","error","-i",in_wav,
+               "-filter_complex", f"atrim=start={t0}:end={t1},asetpts=PTS-STARTPTS,{fg}",
+               "-map","[out]","-ar","44100","-ac","2",seg_out]
         safe_run(cmd); return seg_out
-
     for (d0, d1) in drops:
         if d0 > cursor + 0.05:
             segments.append(cut_and_process(cursor, d0, verse_plan, idx)); idx += 1
@@ -194,7 +201,28 @@ def render_adaptive_from_plans(in_wav, out_wav, verse_plan, drop_plan):
         cursor = d1
     if cursor < total_dur - 0.05:
         segments.append(cut_and_process(cursor, total_dur, verse_plan, idx)); idx += 1
+    list_path = out_wav + ".txt"
+    with open(list_path,"w") as f:
+        for s in segments: f.write(f"file '{s}'\n")
+    safe_run(["ffmpeg","-y","-hide_banner","-loglevel","error","-f","concat","-safe","0","-i",list_path,"-c","copy",out_wav])
 
+def render_adaptive_heuristic(in_wav, out_wav, analysis):
+    drops, total_dur = detect_sections(in_wav)
+    segments, cursor, idx = [], 0.0, 0
+    def cut_and_process(t0, t1, is_drop, i):
+        fg = build_fg_adaptive_heuristic(analysis, is_drop)
+        seg_out = os.path.join(os.path.dirname(out_wav), f"seg_h_{i:03d}.wav")
+        cmd = ["ffmpeg","-y","-hide_banner","-loglevel","error","-i",in_wav,
+               "-filter_complex", f"atrim=start={t0}:end={t1},asetpts=PTS-STARTPTS,{fg}",
+               "-map","[out]","-ar","44100","-ac","2",seg_out]
+        safe_run(cmd); return seg_out
+    for (d0, d1) in drops:
+        if d0 > cursor + 0.05:
+            segments.append(cut_and_process(cursor, d0, False, idx)); idx += 1
+        segments.append(cut_and_process(d0, d1, True, idx)); idx += 1
+        cursor = d1
+    if cursor < total_dur - 0.05:
+        segments.append(cut_and_process(cursor, total_dur, False, idx)); idx += 1
     list_path = out_wav + ".txt"
     with open(list_path,"w") as f:
         for s in segments: f.write(f"file '{s}'\n")
@@ -212,7 +240,6 @@ llm_model = st.sidebar.text_input("OpenAI model", value="gpt-4o-mini")
 st.sidebar.caption("Set OPENAI_API_KEY in Streamlit secrets.")
 
 def llm_plan(analysis, intent, prompt, model):
-    """Ask the LLM for either a single plan OR sectioned plans {verse, drop}."""
     if not (OPENAI_AVAILABLE and "OPENAI_API_KEY" in st.secrets and st.secrets["OPENAI_API_KEY"]):
         return None, "LLM disabled or missing key."
     system = """
@@ -223,8 +250,9 @@ Create a MUSICAL mastering plan from:
 - REFERENCE: vibe/track/artist if provided (e.g., “Soma by Return of the Jaded”).
 
 Output STRICT JSON ONLY.
-Prefer returning section-specific plans (verse vs drop) if the track likely has both.
-Schema option A (sectioned):
+Prefer section-specific plans if appropriate.
+
+Schema A (sectioned):
 {
   "verse": {
     "targets": {"lufs_i": float, "true_peak_db": float},
@@ -234,25 +262,22 @@ Schema option A (sectioned):
     "stereo": {"amount": float},
     "explanation": string
   },
-  "drop": { ... same keys ... }
+  "drop": { ... }
 }
-Schema option B (single plan):
+
+Schema B (single plan):
 {
-  "targets": {...},
-  "eq": {...},
-  "mb_comp": {...},
-  "saturation": {...},
-  "stereo": {...},
-  "explanation": string
+  "targets": {...}, "eq": {...}, "mb_comp": {...}, "saturation": {...}, "stereo": {...}, "explanation": string
 }
 
 Guardrails:
-- LUFS in [-14, -9]; true_peak ≤ -1.0 (prefer -1.2).
-- EQ within ±2 dB; mud band 200–350 Hz.
-- Multiband thresholds -30…-18 dB; ratios implied by thresholds (we'll set them).
-- Saturation drive 0…+3 dB; Stereo -0.2…+0.2.
+- LUFS in [-14, -9]; true_peak ≤ -1.0 (prefer -1.2)
+- EQ moves within ±2 dB (low_shelf_db, mud_cut_db, high_shelf_db)
+- Multiband thresholds in [-30, -18] dB
+- Saturation drive in [0, 3] dB
+- Stereo amount in [-0.2, 0.2]
 
-Be subtle and musical. Return VALID JSON ONLY.
+Return VALID JSON ONLY.
 """.strip()
     user = f"ANALYSIS:{json.dumps(analysis)}\nINTENT:{json.dumps(intent)}\nREFERENCE:{prompt or ''}"
     try:
@@ -264,8 +289,10 @@ Be subtle and musical. Return VALID JSON ONLY.
         content = resp.choices[0].message.content.strip()
         if content.startswith("```"):
             content = content.strip().split("\n",1)[-1]
-            if content.endswith("```"): content = content[:-3].strip()
-            if content.lower().startswith("json"): content = content[4:].strip()
+            if content.endswith("```"):
+                content = content[:-3].strip()
+            if content.lower().startswith("json"):
+                content = content[4:].strip()
         start, end = content.find("{"), content.rfind("}")
         plan = json.loads(content[start:end+1])
         return plan, "LLM plan generated."
@@ -273,16 +300,13 @@ Be subtle and musical. Return VALID JSON ONLY.
         return None, f"LLM error: {e}"
 
 def derive_section_plans_from_single(base_plan):
-    """If LLM returns a single plan, derive gentler verse & tighter drop."""
     import copy
     verse = copy.deepcopy(base_plan)
     drop  = copy.deepcopy(base_plan)
-
     verse["targets"]["lufs_i"] = float(clamp(verse["targets"].get("lufs_i", -11.5) - 1.0, -14.0, -9.0))
     verse["targets"]["true_peak_db"] = float(min(-1.0, verse["targets"].get("true_peak_db", -1.2)))
     for band in ["low_thr_db","mid_thr_db","high_thr_db"]:
         verse["mb_comp"][band] = float(min(-18.0, verse["mb_comp"].get(band, -24) + 2))  # gentler
-
     drop["targets"]["lufs_i"] = float(clamp(drop["targets"].get("lufs_i", -11.5) + 0.7, -14.0, -9.0))
     drop["targets"]["true_peak_db"] = float(min(-1.0, drop["targets"].get("true_peak_db", -1.2)))
     drop["mb_comp"]["low_thr_db"]  = float(max(-30.0, drop["mb_comp"].get("low_thr_db", -20) - 2))  # tighter lows
@@ -323,7 +347,7 @@ if uploaded is not None:
         or "uploaded_bytes" not in st.session_state):
         st.session_state["uploaded_name"] = uploaded.name
         st.session_state["uploaded_bytes"] = uploaded.read()
-        for k in ("analysis","in_path"): 
+        for k in ("analysis","in_path"):
             st.session_state.pop(k, None)
 
 if "uploaded_bytes" in st.session_state:
@@ -357,15 +381,22 @@ if "uploaded_bytes" in st.session_state:
 
     analysis = st.session_state.get("analysis")
     if analysis:
-        st.subheader("Analysis"); 
+        st.subheader("Analysis")
         st.json(analysis)
 
         # AI plan (optional)
         ai_plan, ai_msg = (None, None)
         if use_llm:
             ai_plan, ai_msg = llm_plan(analysis, intent, prompt_txt, llm_model)
-            st.caption(ai_msg or "")
-            if ai_plan:
+            if not ai_plan:
+                st.warning(f"LLM plan unavailable → falling back to heuristics. Reason: {ai_msg}")
+            else:
+                if "verse" in ai_plan and "drop" in ai_plan:
+                    st.success("LLM: sectioned plans (verse+drop) received.")
+                elif "targets" in ai_plan:
+                    st.info("LLM: single plan received → deriving verse/drop.")
+                else:
+                    st.warning("LLM returned JSON but keys not recognized → fallback to heuristics.")
                 st.subheader("AI Plan")
                 st.code(json.dumps(ai_plan, indent=2))
 
@@ -384,6 +415,7 @@ if "uploaded_bytes" in st.session_state:
                     fg_full = build_fg_from_plan(ai_plan if "targets" in ai_plan else verse_plan)
                     out_ai = os.path.join(base, "master_ai_full.wav")
                     render_variant(in_path, out_ai, fg_full)
+                    st.markdown("### 🧩 AI Master (Full)")
                     st.audio(out_ai)
                     with open(out_ai,"rb") as f:
                         st.download_button("Download AI Master (Full)", f.read(), file_name="master_ai_full.wav")
@@ -396,13 +428,26 @@ if "uploaded_bytes" in st.session_state:
                     out_ad = os.path.join(base, "master_ai_adaptive.wav")
                     render_adaptive_from_plans(in_path, out_ad, verse_plan, drop_plan)
                     post = analyze_audio(out_ad)
-                    st.subheader("Adaptive (AI) post-check")
+                    st.markdown("### 🎯 AI Adaptive (verse/drop)")
                     st.json(post)
                     st.audio(out_ad)
                     with open(out_ad,"rb") as f:
                         st.download_button("Download AI Adaptive", f.read(), file_name="master_ai_adaptive.wav")
                 except Exception as e:
                     st.error("Adaptive render failed."); st.exception(e)
+            elif adaptive and not ai_plan:
+                # Heuristic adaptive fallback
+                try:
+                    out_ad = os.path.join(base, "master_heuristic_adaptive.wav")
+                    render_adaptive_heuristic(in_path, out_ad, analysis)
+                    post = analyze_audio(out_ad)
+                    st.markdown("### 📈 Adaptive (Heuristic)")
+                    st.json(post)
+                    st.audio(out_ad)
+                    with open(out_ad,"rb") as f:
+                        st.download_button("Download Adaptive (Heuristic)", f.read(), file_name="master_heuristic_adaptive.wav")
+                except Exception as e:
+                    st.error("Adaptive heuristic render failed."); st.exception(e)
 
             # Heuristic fallbacks (A/B reference)
             try:
@@ -410,7 +455,7 @@ if "uploaded_bytes" in st.session_state:
                     fg, params = build_fg_heuristic(analysis, intent, variant)
                     out_h = os.path.join(base, f"master_{variant}.wav")
                     render_variant(in_path, out_h, fg)
-                    st.markdown(f"**Heuristic — {variant.capitalize()}**")
+                    st.markdown(f"### 📊 Heuristic — {variant.capitalize()}")
                     st.json(params)
                     st.audio(out_h)
                     with open(out_h,"rb") as f:
