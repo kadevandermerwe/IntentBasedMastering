@@ -5,6 +5,11 @@ from utils import session_tmp_path
 from dsp import analyze_audio, render_variant, render_adaptive_from_plans
 from ai import llm_plan
 
+# --- in app.py (UI controls) ---
+reference_txt = st.text_input("Reference track/artist (optional)", placeholder="e.g., Return of the Jaded – Soma")
+reference_weight = st.slider("Reference weight", 0.0, 1.0, 0.0 if not reference_txt else 0.9, 0.1)
+
+
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="centered")
 st.title("🎛️ Vale Mastering Assistant — AI + Adaptive")
 
@@ -85,6 +90,7 @@ api_key = st.secrets.get("OPENAI_API_KEY", "")
 plan = None; plan_msg = None
 plan, plan_msg = llm_plan(analysis, intent, prompt_txt, llm_model, api_key)
 if not plan:
+    plan, msg = llm_plan(analysis, intent, prompt_txt, llm_model, reference_txt, reference_weight)
     st.error(f"LLM plan unavailable. {plan_msg}  \nSet your OPENAI_API_KEY and try again.")
     st.stop()
 
