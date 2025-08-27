@@ -5,7 +5,7 @@ from dsp import BAND_NAMES
 
 # --- in ai.py (or wherever llm_plan lives) ---
 def llm_plan(analysis, intent, user_prompt, model, reference_txt="", reference_weight=0.0):
-    if not (st.app.use_llm and "OPENAI_API_KEY" in st.app and st.secrets["OPENAI_API_KEY"]):
+    if not ("OPENAI_API_KEY" in st.secrets["OPENAI_API_KEY"]):
         return None, "LLM disabled or missing key."
 
     # Clamp weight to [0,1]
