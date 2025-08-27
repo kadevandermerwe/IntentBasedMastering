@@ -3,66 +3,58 @@ import json
 from utils import clamp
 from dsp import BAND_NAMES
 
-def llm_plan(analysis: dict, intent: dict, prompt_text: str, model: str, api_key: str):
-    """
-    Ask the LLM for either a sectioned plan {"verse":{...},"drop":{...}}
-    or a single plan. Returns (plan_dict, message).
-    """
-    if not api_key:
-        return None, "OpenAI key missing."
+# --- in ai.py (or wherever llm_plan lives) ---
+def llm_plan(analysis, intent, user_prompt, model, reference_txt="", reference_weight=0.0):
+    if not (OPENAI_AVAILABLE and "OPENAI_API_KEY" in st.secrets and st.secrets["OPENAI_API_KEY"]):
+        return None, "LLM disabled or missing key."
 
-    from openai import OpenAI
-    client = OpenAI(api_key=api_key)
+    # Clamp weight to [0,1]
+    try:
+        ref_w = float(reference_weight)
+    except:
+        ref_w = 0.0
+    ref_w = max(0.0, min(1.0, ref_w))
 
-    system = """
+    system = f"""
 You are an expert mastering engineer.
+Blend three signals of evidence:
+1) ANALYSIS (numbers from THIS premaster),
+2) INTENT (user sliders + text),
+3) REFERENCE (named track/artist), with bias weight = {ref_w:.2f} in [0,1].
 
-Design a MUSICAL mastering plan that blends:
-1) ANALYSIS (numbers from this exact premaster),
-2) USER INTENT (sliders + text),
-3) REFERENCE vibe or artist/track (if provided).
+BEHAVIOR:
+- If reference weight ~0.0, treat REFERENCE as color only; prioritize ANALYSIS + INTENT.
+- If reference weight ~1.0, strongly bias tonal/level targets toward the REFERENCE’s *typical* style norms, but never violate guardrails or the actual ANALYSIS (don’t distort).
+- If REFERENCE is empty, behave as if weight=0.0.
 
-Return STRICT JSON ONLY. Prefer sectioned plans if the track likely has verses and drops.
-
-Schema A (sectioned):
-{
-  "verse": {
-    "targets": {"lufs_i": float, "true_peak_db": float},
-    "mb_comp": {"low_thr_db": float, "mid_thr_db": float, "high_thr_db": float},
-    "saturation": {"drive_db": float},
-    "stereo": {"amount": float},
-    "eq8": {
-      "sub": float, "low_bass": float, "high_bass": float, "low_mids": float,
-      "mids": float, "high_mids": float, "highs": float, "air": float
-    },
-    "explanation": string
-  },
-  "drop": { ...same keys... }
-}
-
-Schema B (single):
-{
-  "targets": {...},
-  "mb_comp": {...},
-  "saturation": {...},
-  "stereo": {...},
-  "eq8": {...} OR "eq": {"low_shelf_db": float, "mud_cut_db": float, "high_shelf_db": float},
+OUTPUT STRICT JSON ONLY with keys:
+{{
+  "targets": {{ "lufs_i": float, "true_peak_db": float }},
+  "eq8": {{
+    "sub": float, "low_bass": float, "high_bass": float, "low_mids": float,
+    "mids": float, "high_mids": float, "highs": float, "air": float
+  }},
+  "mb_comp": {{ "low_thr_db": float, "mid_thr_db": float, "high_thr_db": float }},
+  "saturation": {{ "drive_db": float }},
+  "stereo": {{ "amount": float }},
   "explanation": string
-}
+}}
 
-GUARDRAILS (HARD LIMITS):
-- LUFS target ∈ [-14.0, -9.0]
-- True peak ≤ -1.0 dBTP (prefer -1.2)
-- Multiband thresholds ∈ [-30, -18] dB
-- eq8 band gains ∈ [-2.0, +2.0] dB (small, musical moves)
-- Stereo amount ∈ [-0.2, +0.2]
-- Saturation drive_db ∈ [0.0, 3.0]
+CONSTRAINTS:
+- LUFS in [-14, -9]; true_peak ≤ -1.0 (prefer -1.2)
+- EQ band moves in ±2.0 dB each
+- Multiband thresholds in [-30, -18] dB (ratios implied)
+- Saturation drive in [0, 3] dB
+- Stereo amount in [-0.2, 0.2]
 
-Explain in one sentence max (musical intent, not tech).
-Return VALID JSON ONLY.
+NOTES:
+- If REFERENCE is a club/techno/house cue and weight is high, bias toward tighter lows, modest top, and LUFS consistent with that genre—but still fit THIS mix’s ANALYSIS and the user INTENT.
+- Keep explanation to one sentence. Return VALID JSON ONLY.
 """.strip()
 
-    user = f"ANALYSIS:{json.dumps(analysis)}\nINTENT:{json.dumps(intent)}\nREFERENCE:{prompt_text or ''}"
+    user = f"ANALYSIS:{json.dumps(analysis)}\nINTENT:{json.dumps(intent)}\nUSER_PROMPT:{user_prompt or ''}\nREFERENCE:{reference_txt or ''}"
+
+    # ... call OpenAI as you already do, parse JSON, clamp values, return plan ...
 
     resp = client.chat.completions.create(
         model=model,
