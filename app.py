@@ -287,96 +287,61 @@ with col2:
     character = st.slider("Character: Clean  ↔  Tape", -1.0, 1.0, 0.5, 0.1)
 
 # Cache uploaded audio in session so reruns don't wipe it
+# --- Upload & analysis (robust) ---
+
+# 1) Cache the upload only when a new file arrives
 if uploaded is not None:
-    st.session_state["uploaded_name"] = uploaded.name
-    st.session_state["uploaded_bytes"] = uploaded.read()
+    if (
+        "uploaded_name" not in st.session_state
+        or uploaded.name != st.session_state.get("uploaded_name")
+        or "uploaded_bytes" not in st.session_state
+    ):
+        st.session_state["uploaded_name"] = uploaded.name
+        st.session_state["uploaded_bytes"] = uploaded.read()
+        # clear stale analysis if a new file comes in
+        for k in ("analysis", "in_path"):
+            st.session_state.pop(k, None)
 
+# 2) Create a persistent temp dir for this session (so files persist across reruns)
+if "tmpdir" not in st.session_state:
+    st.session_state["tmpdir"] = tempfile.TemporaryDirectory()
+
+# 3) Materialize the uploaded bytes to a file path we can reuse safely
 if "uploaded_bytes" in st.session_state:
-    # Merge prompt with sliders (soft blend)
-    if prompt:
-        parsed = parse_prompt(prompt)
-        st.caption(
-            f"Parsed intent → tone {parsed['tone']:+.2f}, dynamics {parsed['dynamics']:+.2f}, "
-            f"stereo {parsed['stereo']:+.2f}, character {parsed['character']:+.2f}"
-        )
-        tone = float(clamp(tone*0.5 + parsed["tone"]*0.5, -1.0, 1.0))
-        dynamics = float(clamp(dynamics*0.5 + parsed["dynamics"]*0.5, -1.0, 1.0))
-        stereo = float(clamp(stereo*0.5 + parsed["stereo"]*0.5, -1.0, 1.0))
-        character = float(clamp(character*0.5 + parsed["character"]*0.5, -1.0, 1.0))
-
-    intent = {"tone": tone, "dynamics": dynamics, "stereo": stereo, "character": character}
-    st.markdown(
-        f"**Resolved intent** → tone {intent['tone']:+.2f} • dynamics {intent['dynamics']:+.2f} • "
-        f"stereo {intent['stereo']:+.2f} • character {intent['character']:+.2f}"
+    in_path = os.path.join(
+        st.session_state["tmpdir"].name,
+        st.session_state["uploaded_name"].replace(" ", "_")
     )
+    # write bytes every run so the file always exists before analysis/render
+    with open(in_path, "wb") as f:
+        f.write(st.session_state["uploaded_bytes"])
+    st.session_state["in_path"] = in_path
 
-    with tempfile.TemporaryDirectory() as td:
-        in_path = os.path.join(td, st.session_state["uploaded_name"].replace(" ", "_"))
-        with open(in_path, "wb") as f:
-            f.write(st.session_state["uploaded_bytes"])
+    # 4) Controls: analyze + reset
+    cols = st.columns(2)
+    with cols[0]:
+        analyze_click = st.button("Analyze file")
+    with cols[1]:
+        if st.button("Reset file"):
+            # clean only file-related state (keep tmpdir)
+            for k in ("uploaded_name","uploaded_bytes","analysis","in_path"):
+                st.session_state.pop(k, None)
+            st.experimental_rerun()
 
-        # Analyze once, cache in session
-        if st.button("Analyze file") or "analysis" not in st.session_state:
-            st.session_state["analysis"] = analyze_audio(in_path)
+    # 5) Run analysis on click (or if not yet computed) with visible errors
+    if analyze_click or "analysis" not in st.session_state:
+        try:
+            st.session_state["analysis"] = analyze_audio(st.session_state["in_path"])
+        except Exception as e:
+            st.error("❌ Analysis failed.")
+            st.exception(e)  # shows full traceback in the app
+            st.stop()
 
-        analysis = st.session_state.get("analysis")
-        if analysis:
-            st.subheader("Analysis")
-            st.json(analysis)
+    # 6) Show analysis
+    analysis = st.session_state["analysis"]
+    st.subheader("Analysis")
+    st.json(analysis)
 
-            # Optional LLM plan
-            plan = None; plan_msg = None
-            if use_llm:
-                plan, plan_msg = llm_plan(analysis, intent, prompt, llm_model)
-                st.caption(plan_msg or "")
-                if plan:
-                    st.subheader("LLM Plan (clamped)")
-                    st.code(json.dumps(plan, indent=2))
-
-            if st.button("Generate masters"):
-                # Classic 3 variants
-                for variant in ["conservative", "vibe", "loud"]:
-                    fg, params = build_fg(analysis, intent, variant)
-                    st.markdown(f"**Plan – {variant.capitalize()}**")
-                    st.json(params)
-
-                    out_path = os.path.join(td, f"{os.path.splitext(os.path.basename(in_path))[0]}_{variant}.wav")
-                    render_variant(in_path, out_path, fg)
-
-                    post = analyze_audio(out_path)
-                    ok_tp   = post["true_peak_dbfs_est"] <= -0.9
-                    ok_lufs = abs(post["lufs_integrated"] - params["targets"]["lufs_i"]) <= 0.7
-                    ok_dark = (intent["tone"] <= 0 and params["eq"]["high_shelf_db"] <= 1.5) or (intent["tone"] > 0)
-
-                    def bullet(ok, msg): return ("✅ " if ok else "⚠️ ") + msg
-                    st.write(bullet(ok_tp,   f"TP ≤ −1.0 dBTP target (measured {post['true_peak_dbfs_est']:.2f} dBFS est)"))
-                    st.write(bullet(ok_lufs, f"LUFS near target ±0.5 (target {params['targets']['lufs_i']:.1f}, got {post['lufs_integrated']:.1f})"))
-                    st.write(bullet(ok_dark, "Dark intent respected (high shelf capped)"))
-
-                    st.audio(out_path)
-                    with open(out_path, "rb") as f:
-                        st.download_button(
-                            f"Download {variant}",
-                            f.read(),
-                            file_name=os.path.basename(out_path),
-                            mime="audio/wav"
-                        )
-
-                # Adaptive vibe (per-section)
-                if adaptive:
-                    st.markdown("**Adaptive – Vibe (per-section)**")
-                    out_ad = os.path.join(td, f"{os.path.splitext(os.path.basename(in_path))[0]}_adaptive.wav")
-                    render_adaptive(in_path, out_ad, analysis, intent)
-                    post = analyze_audio(out_ad)
-                    st.json({"adaptive_summary": post})
-
-                    st.audio(out_ad)
-                    with open(out_ad, "rb") as f:
-                        st.download_button(
-                            "Download Adaptive",
-                            f.read(),
-                            file_name=os.path.basename(out_ad),
-                            mime="audio/wav"
-                        )
 else:
     st.info("Upload a premaster to begin.")
+    st.stop()
