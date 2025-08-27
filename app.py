@@ -88,13 +88,18 @@ st.json(analysis.get("bands_pct_8", {}))
 # ---- LLM Plan (required)
 api_key = st.secrets.get("OPENAI_API_KEY", "")
 plan = None; plan_msg = None
-plan, plan_msg = llm_plan(analysis, intent, prompt_txt, llm_model, api_key)
+plan, msg = llm_plan(analysis, intent, prompt_txt, llm_model, reference_txt, reference_weight)
 if not plan:
-    plan, msg = llm_plan(analysis, intent, prompt_txt, llm_model, reference_txt, reference_weight)
+    
     st.error(f"LLM plan unavailable. {plan_msg}  \nSet your OPENAI_API_KEY and try again.")
     st.stop()
 
 st.subheader("AI Plan")
+st.caption(
+    f"LLM plan → LUFS {plan['targets']['lufs_i']:.1f}, TP {plan['targets']['true_peak_db']:.1f} | "
+    f"Ref bias: {reference_weight:.2f} | EQ8: sub {plan['eq8']['sub']:+.1f} … air {plan['eq8']['air']:+.1f}"
+)
+
 st.code(json.dumps(plan, indent=2))
 
 # ---- Generate masters
