@@ -230,6 +230,41 @@ def render_variant(in_wav: str, out_wav: str, filtergraph: str):
     ]
     safe_run(cmd)
 
+# in dsp.py — add this near your other builders
+
+from schema import BAND_NAMES  # make sure dsp.py imports BAND_NAMES
+
+def _eq8_expression(eq8: dict) -> str:
+    """
+    Build a nested if() expression for firequalizer across the 8 bands.
+    Boundaries follow your schema ranges (approx). We choose upper-cutoff checks:
+      <80, <120, <250, <500, <3500, <8000, <10000, else
+    """
+    g = {k: float(eq8.get(k, 0.0)) for k in BAND_NAMES}
+    return (
+        "if(lt(f,80),{sub},"
+        " if(lt(f,120),{low_bass},"
+        "  if(lt(f,250),{high_bass},"
+        "   if(lt(f,500),{low_mids},"
+        "    if(lt(f,3500),{mids},"
+        "     if(lt(f,8000),{high_mids},"
+        "      if(lt(f,10000),{highs},{air})"
+        "     )"
+        "    )"
+        "   )"
+        "  )"
+        " )"
+        ")"
+    ).format(**g)
+
+def build_fg_eq8_only(eq8: dict) -> str:
+    """
+    A pure 8-band firequalizer stage → [out].
+    No loudnorm/limiter. Keeps headroom prior to mastering.
+    """
+    expr = _eq8_expression(eq8)
+    return f"firequalizer=gain='{expr}'[out]"
+
 def render_adaptive_from_plans(in_wav: str, out_wav: str, verse_plan: dict, drop_plan: dict):
     """Detect drops, process each segment with verse/drop plans, concat."""
     drops, total_dur = detect_sections(in_wav)
