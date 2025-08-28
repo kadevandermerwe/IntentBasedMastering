@@ -1,32 +1,57 @@
 # ai.py
 import os, json
-import streamlit as st
 from utils import clamp
 from dsp import BAND_NAMES
-from openai import OpenAI
 
 def _strip_proxies_env():
-    # Prevent OpenAI SDK from forwarding proxies kwarg to older httpx
+    """Prevent OpenAI SDK/httpx from picking up proxies that trigger 'proxies' kwarg errors."""
     for k in ("HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","http_proxy","https_proxy","all_proxy"):
-        if k in os.environ:
-            os.environ.pop(k, None)
+        os.environ.pop(k, None)
 
-def llm_plan(api_key, analysis, intent, user_prompt, model, reference_txt="", reference_weight=0.0):
-    """Intent + analysis + (optional) reference → STRICT JSON plan (single or sectioned)."""
-    # Key check
-    if "OPENAI_API_KEY" not in st.secrets and not st.secrets["OPENAI_API_KEY", ""]:
-        return None, "LLM disabled or missing key."
+def _get_api_key(passed_key=None):
+    """
+    Prefer an explicitly passed key. Otherwise try Streamlit secrets.
+    We keep Streamlit import local so this module can be imported without Streamlit present.
+    """
+    if passed_key and str(passed_key).strip():
+        return str(passed_key).strip()
+    try:
+        import streamlit as st
+        return (st.secrets.get("OPENAI_API_KEY", "") or "").strip()
+    except Exception:
+        return ""
 
-    # --- kill proxies that trigger TypeError in httpx on this platform ---
+def llm_plan(
+    analysis: dict,
+    intent: dict,
+    user_prompt: str,
+    model: str,
+    reference_txt: str = "",
+    reference_weight: float = 0.0,
+    api_key: str | None = None,
+):
+    """
+    Intent + analysis + (optional) reference → STRICT JSON plan (single or sectioned).
+    Returns (plan_dict, message) where plan_dict is either:
+      - {"verse": {...}, "drop": {...}}   OR
+      - {...} single-plan
+    """
+    # --- API key resolution ---
+    key = _get_api_key(api_key)
+    if not key:
+        return None, "OPENAI_API_KEY missing or empty (pass api_key or set in Streamlit Secrets)."
+
+    # --- Kill proxies that can break OpenAI client under some httpx builds ---
     _strip_proxies_env()
 
-    # Create client *inside* function, after sanitizing env
+    # --- Create client inside function (safe) ---
     try:
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        from openai import OpenAI
+        client = OpenAI(api_key=key)
     except Exception as e:
-        return None, f"Failed to init OpenAI client: {e}"
+        return None, f"OpenAI client init failed: {e}"
 
-    # Clamp weight to [0,1]
+    # Clamp reference weight to [0,1]
     try:
         ref_w = float(reference_weight)
     except Exception:
