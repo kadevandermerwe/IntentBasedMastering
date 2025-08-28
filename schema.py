@@ -46,3 +46,12 @@ PLAN_KEYS_SINGLE = {
     "stereo": ["amount"],
     # "explanation": string (optional for rendering; present for UX)
 }
+
+# schema.py (append or merge)
+MAX_NOTCHES = 3
+NOTCH_LIMITS = {
+    "freq_hz": (60.0, 16000.0),   # stay out of infrasonic & dog-whistle territory
+    "gain_db": (-9.0, -1.0),      # cuts only for corrective (no boosts)
+    "q":       (4.0, 16.0),       # reasonably narrow
+}
+
