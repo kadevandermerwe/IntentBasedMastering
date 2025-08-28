@@ -1,57 +1,69 @@
 # ai.py
 import os, json
+from typing import Tuple, Any, Dict
 from utils import clamp
 from dsp import BAND_NAMES
 
-def _strip_proxies_env():
-    """Prevent OpenAI SDK/httpx from picking up proxies that trigger 'proxies' kwarg errors."""
+# --- tiny helpers -------------------------------------------------------------
+
+def _strip_proxies_env() -> None:
+    # Some hosted envs set HTTP(S)_PROXY which breaks older httpx paths via OpenAI
     for k in ("HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","http_proxy","https_proxy","all_proxy"):
         os.environ.pop(k, None)
 
-def _get_api_key(passed_key=None):
-    """
-    Prefer an explicitly passed key. Otherwise try Streamlit secrets.
-    We keep Streamlit import local so this module can be imported without Streamlit present.
-    """
+def _get_api_key(passed_key: str | None = None) -> str:
+    """Prefer explicitly-passed key. Otherwise pull from Streamlit secrets."""
     if passed_key and str(passed_key).strip():
         return str(passed_key).strip()
     try:
-        import streamlit as st
+        import streamlit as st  # local import to avoid circular import at module load
         return (st.secrets.get("OPENAI_API_KEY", "") or "").strip()
     except Exception:
         return ""
 
+def _extract_json_block(text: str) -> Dict[str, Any]:
+    """Extract first {...} block from LLM text (strips code fences if present)."""
+    s = text.strip()
+    if s.startswith("```"):
+        s = s.split("\n", 1)[-1]
+        if s.endswith("```"):
+            s = s[:-3].strip()
+        if s.lower().startswith("json"):
+            s = s[4:].strip()
+    a, b = s.find("{"), s.rfind("}")
+    if a == -1 or b == -1:
+        raise ValueError("No JSON object found in model response.")
+    return json.loads(s[a:b+1])
+
+# --- main entry ---------------------------------------------------------------
+
 def llm_plan(
-    analysis: dict,
-    intent: dict,
+    analysis: Dict[str, Any],
+    intent: Dict[str, float],
     user_prompt: str,
     model: str,
     reference_txt: str = "",
     reference_weight: float = 0.0,
     api_key: str | None = None,
-):
+) -> Tuple[Dict[str, Any] | None, str]:
     """
     Intent + analysis + (optional) reference → STRICT JSON plan (single or sectioned).
-    Returns (plan_dict, message) where plan_dict is either:
-      - {"verse": {...}, "drop": {...}}   OR
-      - {...} single-plan
+    Returns (plan_dict_or_None, message).
     """
-    # --- API key resolution ---
     key = _get_api_key(api_key)
     if not key:
         return None, "OPENAI_API_KEY missing or empty (pass api_key or set in Streamlit Secrets)."
 
-    # --- Kill proxies that can break OpenAI client under some httpx builds ---
     _strip_proxies_env()
 
-    # --- Create client inside function (safe) ---
+    # lazy import OpenAI inside function (avoids import at app boot)
     try:
         from openai import OpenAI
         client = OpenAI(api_key=key)
     except Exception as e:
         return None, f"OpenAI client init failed: {e}"
 
-    # Clamp reference weight to [0,1]
+    # clamp ref weight
     try:
         ref_w = float(reference_weight)
     except Exception:
@@ -90,9 +102,7 @@ CONSTRAINTS:
 - Saturation drive in [0, 3] dB
 - Stereo amount in [-0.2, 0.2]
 
-NOTES:
-- If REFERENCE is club/techno/house and weight is high, bias toward tighter lows, modest top, and genre-typical LUFS—still fitting THIS mix’s ANALYSIS and user INTENT.
-- Keep explanation to one sentence. Return VALID JSON ONLY.
+Keep explanation to one sentence. Return VALID JSON ONLY.
 """.strip()
 
     user = (
@@ -102,37 +112,21 @@ NOTES:
         f"REFERENCE:{reference_txt or ''}"
     )
 
-    # ---- Call LLM
+    # call LLM
     try:
         resp = client.chat.completions.create(
             model=model,
             temperature=0.25,
-            messages=[
-                {"role":"system","content":system},
-                {"role":"user","content":user}
-            ],
+            messages=[{"role":"system","content":system},
+                      {"role":"user","content":user}],
         )
-        content = resp.choices[0].message.content.strip()
+        content = resp.choices[0].message.content or ""
+        raw = _extract_json_block(content)
     except Exception as e:
-        return None, f"LLM request failed: {e}"
+        return None, f"LLM request/parse failed: {e}"
 
-    # ---- Robust JSON extract
-    try:
-        if content.startswith("```"):
-            content = content.strip().split("\n", 1)[-1]
-            if content.endswith("```"):
-                content = content[:-3].strip()
-            if content.lower().startswith("json"):
-                content = content[4:].strip()
-        start, end = content.find("{"), content.rfind("}")
-        if start == -1 or end == -1:
-            return None, "LLM returned no JSON."
-        raw = json.loads(content[start:end+1])
-    except Exception as e:
-        return None, f"Bad JSON from LLM: {e}"
-
-    # ---- Clamp & normalize
-    def _clamp_plan(p: dict) -> dict:
+    # clamp + normalize
+    def _clamp_plan(p: Dict[str, Any]) -> Dict[str, Any]:
         p = dict(p or {})
         tgt  = dict(p.get("targets")    or {})
         mb   = dict(p.get("mb_comp")    or {})
@@ -141,32 +135,30 @@ NOTES:
         eq8  = p.get("eq8")
         eq3  = p.get("eq")
 
-        # Targets
-        tgt["lufs_i"] = float(clamp(tgt.get("lufs_i", -11.5), -14.0, -9.0))
-        tp = float(tgt.get("true_peak_db", -1.2))
+        # targets
+        tgt["lufs_i"]      = float(clamp(tgt.get("lufs_i", -11.5), -14.0, -9.0))
+        tp                 = float(tgt.get("true_peak_db", -1.2))
         tgt["true_peak_db"] = tp if tp <= -1.0 else -1.2
 
-        # Multiband thresholds
-        mb["low_thr_db"]  = float(clamp(mb.get("low_thr_db",  -20), -30, -18))
-        mb["mid_thr_db"]  = float(clamp(mb.get("mid_thr_db",  -24), -30, -18))
-        mb["high_thr_db"] = float(clamp(mb.get("high_thr_db", -26), -30, -18))
+        # multiband thresholds
+        mb["low_thr_db"]   = float(clamp(mb.get("low_thr_db",  -20), -30, -18))
+        mb["mid_thr_db"]   = float(clamp(mb.get("mid_thr_db",  -24), -30, -18))
+        mb["high_thr_db"]  = float(clamp(mb.get("high_thr_db", -26), -30, -18))
 
-        # Sat & stereo
-        sat["drive_db"] = float(clamp(sat.get("drive_db", 1.0), 0.0, 3.0))
-        ster["amount"]  = float(clamp(ster.get("amount", 0.0), -0.2, 0.2))
+        # sat & stereo
+        sat["drive_db"]    = float(clamp(sat.get("drive_db", 1.0), 0.0, 3.0))
+        ster["amount"]     = float(clamp(ster.get("amount", 0.0), -0.2, 0.2))
 
-        # Preferred: eq8
+        # preferred 8-band EQ
         if isinstance(eq8, dict):
             p["eq8"] = {name: float(clamp(eq8.get(name, 0.0), -2.0, 2.0)) for name in BAND_NAMES}
             p.pop("eq", None)
         elif isinstance(eq3, dict):
-            # Legacy 3-band fallback
-            eq3 = {
+            p["eq"] = {
                 "low_shelf_db":  float(clamp(eq3.get("low_shelf_db",  0.0), -2.0, 2.0)),
                 "mud_cut_db":    float(clamp(eq3.get("mud_cut_db",    0.0), -2.0, 2.0)),
                 "high_shelf_db": float(clamp(eq3.get("high_shelf_db", 0.0), -2.0, 2.0)),
             }
-            p["eq"] = eq3
 
         p["targets"], p["mb_comp"], p["saturation"], p["stereo"] = tgt, mb, sat, ster
         return p
@@ -176,5 +168,5 @@ NOTES:
             "verse": _clamp_plan(raw["verse"]),
             "drop":  _clamp_plan(raw["drop"]),
         }, "LLM plan generated (sectioned)."
-    else:
-        return _clamp_plan(raw), "LLM plan generated (single)."
+
+    return _clamp_plan(raw), "LLM plan generated (single)."
