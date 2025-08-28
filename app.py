@@ -13,7 +13,6 @@ from dsp import (
 )
 
 from ai import llm_plan
-from corrective import llm_corrective_eq8, apply_corrective_eq
 from diagnostics import validate_plan  # start using diagnostics!
 from corrective import llm_corrective_cleanup, apply_corrective_eq
 
