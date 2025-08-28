@@ -5,6 +5,7 @@ from utils import clamp, safe_run
 # ---------- Tonal bands (Hz) ----------
 BAND_NAMES = ["sub","low_bass","high_bass","low_mids","mids","high_mids","highs","air"]
 BAND_EDGES = [20, 80, 120, 250, 500, 3500, 8000, 10000, 20000]
+
 # Bands: [20-80), [80-120), [120-250), [250-500), [500-3500), [3500-8000), [8000-10000), [10000-20000]
 
 def _clamp_db(x, lo=-2.0, hi=2.0):
