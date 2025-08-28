@@ -92,7 +92,7 @@ st.subheader("Tonal balance (8 bands)")
 st.json(analysis.get("bands_pct_8", {}))
 
 # ---- LLM Plan (required)
-api_key = st.secrets.get("OPENAI_API_KEY", "")
+"""api_key = st.secrets.get("OPENAI_API_KEY", "")"""
 plan = None; plan_msg = None
 plan, msg = llm_plan(api_key, analysis, intent, prompt_txt, llm_model, reference_txt, reference_weight)
 if not plan:
