@@ -111,6 +111,14 @@ plan, msg = llm_plan(
     reference_weight=reference_weight,
     api_key=api_key,  # <-- IMPORTANT: keyword argument
 )
+# after plan retrieval
+verse_plan = drop_plan = None
+if plan and "verse" in plan and "drop" in plan:
+    verse_plan, drop_plan = plan["verse"], plan["drop"]
+elif plan:
+    from dsp import derive_section_plans_from_single
+    verse_plan, drop_plan = derive_section_plans_from_single(plan)
+
 
 if not plan:
     st.error(f"LLM plan unavailable. {msg}\nSet your OPENAI_API_KEY and try again.")
