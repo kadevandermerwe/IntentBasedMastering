@@ -256,13 +256,13 @@ def build_fg_eq8_only(eq8: dict) -> str:
     expr = _eq8_expression(eq8)
     return f"firequalizer=gain='{expr}'[out]"
 
-def render_adaptive_from_plans(in_wav: str, out_wav: str, verse_plan: dict, drop_plan: dict):
+def render_adaptive_from_plans(in_wav: str, out_wav: str, verse_plan: dict, drop_plan: dict, notches: list[dict] | None = None):
     """Detect drops, process each segment with verse/drop plans, concat."""
     drops, total_dur = detect_sections(in_wav)
     segments, cursor, idx = [], 0.0, 0
 
     def cut_and_process(t0, t1, plan, i):
-        fg = build_fg_from_plan(plan)
+        fg = build_fg_from_plan(plan, notches=notches if 'notches' in locals() else None)
         seg_out = os.path.join(os.path.dirname(out_wav), f"seg_{i:03d}.wav")
         cmd = [
             "ffmpeg","-y","-hide_banner","-loglevel","error",
