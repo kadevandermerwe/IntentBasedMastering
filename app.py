@@ -9,7 +9,9 @@ from dsp import (
     render_adaptive_from_plans,
     build_fg_from_plan,
     derive_section_plans_from_single,
+    detect_resonances_simple
 )
+
 from ai import llm_plan
 from corrective import llm_corrective_eq8, apply_corrective_eq
 from diagnostics import validate_plan  # start using diagnostics!
@@ -34,6 +36,8 @@ reference_weight = st.slider(
 use_llm   = st.sidebar.checkbox("Use OpenAI LLM planner (required)", value=True, disabled=True)
 llm_model = st.sidebar.text_input("OpenAI model", value="gpt-4o-mini")
 st.sidebar.caption("Set OPENAI_API_KEY in Streamlit Cloud → Settings → Secrets.")
+apply_corrective = st.checkbox("Pre-clean: auto resonance notches before mastering", value=True)
+
 
 # --- Intent controls ---
 prompt_txt = st.text_area(
@@ -191,33 +195,42 @@ if not ok:
     
 # --- Generate masters ---
 if gen_click:
-    try:
-        # Always provide a full-pass AI master (use the single plan if present,
-        # otherwise use verse_plan as the "full" chain).
-        full_plan = plan if (plan and "targets" in plan) else verse_plan
-        if full_plan:
-            out_ai = os.path.join(base, "master_ai_full.wav")
-            fg = build_fg_from_plan(full_plan)
-            render_variant(master_input_path, out_ai, fg)
-            st.markdown("### 🧩 AI Master (Full)")
-            st.audio(out_ai)
-            with open(out_ai, "rb") as f:
-                st.download_button("Download AI Master (Full)", f.read(), file_name="master_ai_full.wav")
+    notches = []
+    if apply_corrective:
+        try:
+            notches = detect_resonances_simple(in_path, max_notches=3, min_prom_db=3.0)
+            if notches:
+                st.markdown("**Corrective notches (auto):**")
+                st.json(notches)
+        except Exception as e:
+            st.warning("Resonance detection failed; continuing without notches.")
+            st.exception(e)
+            notches = []
 
-        # Adaptive per-section master (only if checkbox is on and both plans exist)
-        if adaptive and verse_plan and drop_plan:
+    try:
+        # Adaptive if sectioned plan present
+        if plan and "verse" in plan and "drop" in plan:
             out_ad = os.path.join(base, "master_ai_adaptive.wav")
-            render_adaptive_from_plans(master_input_path, out_ad, verse_plan, drop_plan)
+            render_adaptive_from_plans(in_path, out_ad, plan["verse"], plan["drop"], notches=notches)
             st.markdown("### 🎯 AI Adaptive (verse/drop)")
             st.audio(out_ad)
             with open(out_ad, "rb") as f:
                 st.download_button("Download AI Adaptive", f.read(), file_name="master_ai_adaptive.wav")
-        elif adaptive and not (verse_plan and drop_plan):
-            st.caption("Adaptive was requested but plans were missing; skipped adaptive render.")
-
+        elif plan:
+            # Single full-pass plan
+            out_ai = os.path.join(base, "master_ai_full.wav")
+            fg = build_fg_from_plan(plan, notches=notches)
+            render_variant(in_path, out_ai, fg)
+            st.markdown("### 🧩 AI Master (Full)")
+            st.audio(out_ai)
+            with open(out_ai, "rb") as f:
+                st.download_button("Download AI Master (Full)", f.read(), file_name="master_ai_full.wav")
+        else:
+            st.error("No plan available to render.")
     except Exception as e:
         st.error("Render failed.")
         st.exception(e)
+
 
 # --- Debug ---
 with st.expander("Debug"):
