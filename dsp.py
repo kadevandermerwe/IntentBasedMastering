@@ -100,17 +100,27 @@ def analyze_audio(path: str) -> dict:
         "bands_pct_8": spec_8,
     }
 
-def detect_sections(path: str, frame_ms=200, hop_ms=100, energy_sigma=1.0, min_len_s=4.0):
-    """Return (drop_spans, total_duration_sec) by RMS thresholding (energy > mean+σ*std)."""
-    import librosa
-    y, sr = librosa.load(path, sr=None, mono=True)
-    frame = int(sr*frame_ms/1000); hop = int(sr*hop_ms/1000)
-    rms = librosa.feature.rms(y=y, frame_length=frame, hop_length=hop)[0]
-    t = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=hop, n_fft=frame)
+def detect_sections(path, frame_ms=200, hop_ms=100, energy_sigma=1.0, min_len_s=4.0):
+    # Load audio with soundfile (safer than librosa.load)
+    y, sr = sf.read(path, always_2d=False)
+    if y.ndim > 1:
+        y = y.mean(axis=1)  # mono
+
+    frame = int(sr * frame_ms / 1000)
+    hop = int(sr * hop_ms / 1000)
+
+    # Short-term energy
+    rms = []
+    for i in range(0, len(y) - frame, hop):
+        seg = y[i:i+frame]
+        rms.append(np.sqrt(np.mean(seg**2)))
+    rms = np.array(rms)
+
+    t = np.arange(len(rms)) * hop / sr
     thr = rms.mean() + energy_sigma * rms.std()
-    mask = rms > thr
+
     spans, start = [], None
-    for i, on in enumerate(mask):
+    for i, on in enumerate(rms > thr):
         if on and start is None:
             start = t[i]
         if not on and start is not None:
