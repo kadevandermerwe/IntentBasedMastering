@@ -14,45 +14,36 @@ def _clamp_db(x, lo=-2.0, hi=2.0):
         x = 0.0
     return max(lo, min(hi, x))
 
-def firequalizer_8band_expr(eq8: dict) -> str:
+def _eq8_firequalizer_expr(eq8: dict) -> str:
     """
-    Build an FFmpeg firequalizer gain expression for 8 bands.
-    Expects keys: sub, low_bass, high_bass, low_mids, mids, high_mids, highs, air.
-    Returns the full filter string, e.g.:
-      firequalizer=gain='if(lt(f,80),..., ... )':zero_phase=on:accuracy=high
+    Piecewise gain curve for 8 bands using firequalizer's expression.
+    Band edges (Hz):
+      sub: <80
+      low_bass: 80–120
+      high_bass: 120–250
+      low_mids: 250–500
+      mids: 500–3500
+      high_mids: 3500–8000
+      highs: 8000–10000
+      air: >10000
     """
-    sub       = _clamp_db(eq8.get("sub", 0.0))
-    low_bass  = _clamp_db(eq8.get("low_bass", 0.0))
-    high_bass = _clamp_db(eq8.get("high_bass", 0.0))
-    low_mids  = _clamp_db(eq8.get("low_mids", 0.0))
-    mids      = _clamp_db(eq8.get("mids", 0.0))
-    high_mids = _clamp_db(eq8.get("high_mids", 0.0))
-    highs     = _clamp_db(eq8.get("highs", 0.0))
-    air       = _clamp_db(eq8.get("air", 0.0))
+    # safe gains for all bands (floats, within ±2.0 ideally)
+    gains = {name: float(eq8.get(name, 0.0)) for name in BAND_NAMES}
 
-    # Nested band selector (use < threshold, last band is "else")
-    gain_expr = (
+    # nested ifs using lt()/gt() so it's compatible with ffmpeg expr
+    # NOTE: Keep commas and spaces exact; firequalizer is picky.
+    expr = (
         "if(lt(f,80),{sub},"
         " if(lt(f,120),{low_bass},"
         "  if(lt(f,250),{high_bass},"
         "   if(lt(f,500),{low_mids},"
         "    if(lt(f,3500),{mids},"
         "     if(lt(f,8000),{high_mids},"
-        "      if(lt(f,10000),{highs},{air})"
-        ")))))))"
-    ).format(
-        sub=f"{sub:.3f}",
-        low_bass=f"{low_bass:.3f}",
-        high_bass=f"{high_bass:.3f}",
-        low_mids=f"{low_mids:.3f}",
-        mids=f"{mids:.3f}",
-        high_mids=f"{high_mids:.3f}",
-        highs=f"{highs:.3f}",
-        air=f"{air:.3f}",
-    )
+        "      if(lt(f,10000),{highs},{air})))))))"
+    ).format(**gains)
 
-    # Full firequalizer filter with safe options
-    return f"firequalizer=gain='{gain_expr}':zero_phase=on:accuracy=high"
+    # return full firequalizer filter segment (no trailing semicolon)
+    return f"firequalizer=gain='{expr}'"
 
 
 def _band_mask(freqs: np.ndarray, f_lo: float, f_hi: float) -> np.ndarray:
@@ -155,44 +146,70 @@ def firequalizer_from_eq8(eq8: dict) -> str:
 
 def build_fg_from_plan(plan: dict) -> str:
     """
-    Translate an LLM plan → FFmpeg filtergraph (MB comp -> EQ (eq8 preferred) -> loudnorm).
-    No heuristics. If plan misses eq/eq8, EQ stage is neutral.
+    Translate a single LLM plan dict → FFmpeg filtergraph (string).
+    Expects keys:
+      - targets: lufs_i, true_peak_db
+      - mb_comp: low_thr_db, mid_thr_db, high_thr_db
+      - saturation: drive_db
+      - eq8 (preferred) or eq (legacy)
     """
+    # ----- targets -----
     tgt = plan.get("targets", {}) or {}
-    mb = (
-      "asplit=3[lo][mid][hi];"
-      f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio=2.0:attack=10:release=180[loC];"
-      f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio=1.6:attack=16:release=220[midC];"
-      f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio=1.3:attack=12:release=180[hiC];"
-      "[loC][midC][hiC]amix=inputs=3[mb];"
-    )
+    tgt_lufs = float(tgt.get("lufs_i", -11.5))
+    tgt_tp   = float(tgt.get("true_peak_db", -1.2))
 
-    # --- 8-band EQ if provided; else fallback to legacy 3-band ---
-    if "eq8" in plan and isinstance(plan["eq8"], dict):
-        eq_filter = firequalizer_8band_expr(plan["eq8"])
+    # ----- thresholds (define them! this fixed your NameError) -----
+    mb = plan.get("mb_comp", {}) or {}
+    lo_thr  = float(mb.get("low_thr_db",  -20))
+    mid_thr = float(mb.get("mid_thr_db",  -24))
+    hi_thr  = float(mb.get("high_thr_db", -26))
+
+    # ratios tuned gentle; you can tweak if you like
+    lo_ratio, mid_ratio, hi_ratio = 2.0, 1.6, 1.3
+
+    # ----- saturation pre-gain -----
+    sat = plan.get("saturation", {}) or {}
+    drive_db = float(sat.get("drive_db", 1.0))
+    drive_in = 1.0 + 0.1 * max(0.0, drive_db)   # convert “dB-ish” into linear-ish gain
+
+    # ----- EQ (prefer 8-band eq8; fallback to legacy 3-band eq) -----
+    eq8 = plan.get("eq8")
+    eq_expr = None
+    if isinstance(eq8, dict):
+        eq_expr = _eq8_firequalizer_expr(eq8)
     else:
-        # legacy 3-band fallback; keep if you want backward compatibility
-        lo_gain  = float(plan.get("eq", {}).get("low_shelf_db", 0.0))
-        mud_cut  = float(plan.get("eq", {}).get("mud_cut_db",   0.0))
-        hi_gain  = float(plan.get("eq", {}).get("high_shelf_db",0.0))
-        # clamp to ±2 dB
-        lo_gain = _clamp_db(lo_gain); mud_cut = _clamp_db(mud_cut); hi_gain = _clamp_db(hi_gain)
-        eq_filter = (
-            "[mb]"
-            f"firequalizer=gain='if(lt(f,120),{lo_gain:.3f},"
-            f" if(lt(f,300),{mud_cut:.3f},"
-            f"  if(gt(f,12000),{hi_gain:.3f},0)))'"
-            ":zero_phase=on:accuracy=high"
+        # legacy 3-band support (kept for safety)
+        eq3 = plan.get("eq", {}) or {}
+        low_shelf  = float(eq3.get("low_shelf_db",  0.0))
+        mud_cut    = float(eq3.get("mud_cut_db",    0.0))
+        high_shelf = float(eq3.get("high_shelf_db", 0.0))
+        eq_expr = (
+            "firequalizer=gain='"
+            f"if(lt(f,120),{low_shelf}, "
+            f" if(lt(f,300),{mud_cut}, "
+            f"  if(gt(f,12000),{high_shelf},0)))'"
         )
 
-    # chain it
-    eq = f"[mb]{eq_filter}[eq];"
+    # ----- multiband split → comp → sum -----
+    # NOTE: we removed amix normalize flag; Fire up/downstream manages level.
+    mb_chain = (
+        "asplit=3[lo][mid][hi];"
+        f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio={lo_ratio}:attack=10:release=180[loC];"
+        f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio={mid_ratio}:attack=16:release=220[midC];"
+        f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio={hi_ratio}:attack=12:release=180[hiC];"
+        "[loC][midC][hiC]amix=inputs=3[mb]"
+    )
 
-    # Saturation / pre-gain (or anull) then loudness stage
-    sat  = f"[eq]volume={drive_in}[sat];"  # or "[eq]anull[sat];"
-    loud = f"[sat]loudnorm=I={tgt_lufs}:LRA=9:TP={tgt_tp}:dual_mono=true:linear=true[out]"
+    # ----- chain it all -----
+    # [mb] -> firequalizer -> volume (sat) -> loudnorm -> [out]
+    fg = (
+        mb_chain + ";" +
+        "[mb]" + eq_expr + "[eq];" +
+        f"[eq]volume={drive_in}[sat];" +
+        f"[sat]loudnorm=I={tgt_lufs}:LRA=9:TP={tgt_tp}:dual_mono=true:linear=true[out]"
+    )
+    return fg
 
-    return mb + eq + sat + loud
 
 def render_variant(in_wav: str, out_wav: str, filtergraph: str):
     cmd = [
@@ -231,3 +248,26 @@ def render_adaptive_from_plans(in_wav: str, out_wav: str, verse_plan: dict, drop
         for s in segments:
             f.write(f"file '{s}'\n")
     safe_run(["ffmpeg","-y","-hide_banner","-loglevel","error","-f","concat","-safe","0","-i",list_path,"-c","copy",out_wav])
+
+def derive_section_plans_from_single(base_plan: dict):
+    """
+    If LLM returns a single plan, derive gentler verse & firmer drop
+    without changing tonality (keeps eq8).
+    """
+    import copy
+    verse = copy.deepcopy(base_plan)
+    drop  = copy.deepcopy(base_plan)
+
+    # Verse a bit quieter & gentler thresholds
+    verse["targets"]["lufs_i"] = float(max(-14.0, min(-9.0, verse["targets"].get("lufs_i", -11.5) - 1.0)))
+    verse["targets"]["true_peak_db"] = float(min(-1.0, verse["targets"].get("true_peak_db", -1.2)))
+    for k, delta in (("low_thr_db", +2), ("mid_thr_db", +2), ("high_thr_db", +2)):
+        verse.setdefault("mb_comp", {})[k] = float(max(-30.0, min(-18.0, verse["mb_comp"].get(k, -24) + delta)))
+
+    # Drop a touch louder & firmer low band
+    drop["targets"]["lufs_i"] = float(max(-14.0, min(-9.0, drop["targets"].get("lufs_i", -11.5) + 0.7)))
+    drop["targets"]["true_peak_db"] = float(min(-1.0, drop["targets"].get("true_peak_db", -1.2)))
+    drop.setdefault("mb_comp", {})["low_thr_db"] = float(max(-30.0, min(-18.0, drop["mb_comp"].get("low_thr_db", -20) - 2)))
+
+    return verse, drop
+
