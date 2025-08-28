@@ -11,6 +11,8 @@ from dsp import (
     derive_section_plans_from_single,
 )
 from ai import llm_plan
+from corrective import llm_corrective_eq8, apply_corrective_eq
+from diagnostics import validate_plan  # start using diagnostics!
 
 # --- Page ---
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="centered")
@@ -57,6 +59,8 @@ st.caption(
 
 # --- Adaptive toggle ---
 adaptive = st.sidebar.checkbox("Adaptive per-section rendering (detect drops/verses)", value=True)
+
+preclean = st.sidebar.checkbox("Pre-master corrective cleanup (EQ)", value=True)
 
 # --- Upload ---
 uploaded = st.file_uploader(
@@ -114,6 +118,35 @@ st.json(analysis)
 st.subheader("Tonal balance (8 bands)")
 st.json(analysis.get("bands_pct_8", {}))
 
+#---Pre-clean Corrective eq--#
+master_input_path = in_path
+if preclean:
+    # Ask LLM for corrective eq8
+    api_key = st.secrets.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+    corr_eq8, corr_msg = llm_corrective_eq8(
+        api_key=api_key,
+        analysis=analysis,
+        user_prompt=prompt_txt,
+        model=llm_model,
+    )
+    if corr_eq8:
+        st.subheader("Corrective EQ (pre-master)")
+        st.json(corr_eq8)
+        corrected_path = os.path.join(os.path.dirname(in_path), "premaster_corrected.wav")
+        try:
+            apply_corrective_eq(in_path, corrected_path, corr_eq8)
+            st.audio(corrected_path)
+            # Re-analyze corrected file and use THAT for planning/mastering
+            analysis = analyze_audio(corrected_path)
+            st.caption("Re-analysis after corrective cleanup")
+            st.json(analysis)
+            master_input_path = corrected_path
+        except Exception as e:
+            st.error("Corrective render failed.")
+            st.exception(e)
+    else:
+        st.warning(f"No corrective plan: {corr_msg}")
+
 # --- LLM Plan (required) ---
 api_key = st.secrets.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
 
@@ -122,14 +155,15 @@ st.sidebar.write(f"🧪 Secrets has key: {'yes' if st.secrets.get('OPENAI_API_KE
 st.sidebar.write(f"🧪 Env has key: {'yes' if os.environ.get('OPENAI_API_KEY') else 'no'}")
 st.sidebar.write(f"🧪 Using key length: {len(api_key) if api_key else 0}")
 
+# BUT: pass the updated 'analysis' and use master_input_path later for rendering
 plan, msg = llm_plan(
-    api_key=api_key,
     analysis=analysis,
     intent=intent,
     user_prompt=prompt_txt,
     model=llm_model,
     reference_txt=reference_txt,
     reference_weight=reference_weight,
+    api_key=api_key,
 )
 
 # Normalize to verse/drop immediately (so adaptive can use it)
@@ -147,6 +181,14 @@ else:
     st.subheader("AI Plan")
     st.code(json.dumps(plan, indent=2))
 
+
+ok, errs = validate_plan(plan) if plan else (False, ["no plan"])
+if not ok:
+    st.error("LLM plan failed validation:")
+    for e in errs:
+        st.write(f"• {e}")
+    st.stop()
+    
 # --- Generate masters ---
 if gen_click:
     try:
@@ -156,7 +198,7 @@ if gen_click:
         if full_plan:
             out_ai = os.path.join(base, "master_ai_full.wav")
             fg = build_fg_from_plan(full_plan)
-            render_variant(in_path, out_ai, fg)
+            render_variant(master_input_path, out_ai, fg)
             st.markdown("### 🧩 AI Master (Full)")
             st.audio(out_ai)
             with open(out_ai, "rb") as f:
@@ -165,7 +207,7 @@ if gen_click:
         # Adaptive per-section master (only if checkbox is on and both plans exist)
         if adaptive and verse_plan and drop_plan:
             out_ad = os.path.join(base, "master_ai_adaptive.wav")
-            render_adaptive_from_plans(in_path, out_ad, verse_plan, drop_plan)
+            render_adaptive_from_plans(master_input_path, out_ad, verse_plan, drop_plan)
             st.markdown("### 🎯 AI Adaptive (verse/drop)")
             st.audio(out_ad)
             with open(out_ad, "rb") as f:
