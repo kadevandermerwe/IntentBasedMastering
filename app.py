@@ -1,6 +1,7 @@
 # app.py
 import os, json
 import streamlit as st
+import shutil, re
 
 from utils import session_tmp_path
 from dsp import (
@@ -64,34 +65,46 @@ st.caption(
 )
 
 # ---------------- Upload ----------------
-MAX_MB = 500 
+def _safe_name(name: str) -> str:
+    base = os.path.basename(name or "upload")
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", base)
+
 uploaded = st.file_uploader(
     "Upload premaster (WAV/AIFF/FLAC — no limiter, ~−6 dBFS headroom)",
-    type=["wav", "aiff", "aif", "flac"],
+    type=["wav", "aiff", "aif", "flac"]
 )
 
-# ---------------- Persist upload in session ----------------
-if uploaded is not None:
-    if (
-        "uploaded_name" not in st.session_state
-        or uploaded.name != st.session_state.get("uploaded_name")
-        or "uploaded_bytes" not in st.session_state
-    ):
-        st.session_state["uploaded_name"] = uploaded.name
-        st.session_state["uploaded_bytes"] = uploaded.read()
-        for k in ("analysis", "in_path"):
-            st.session_state.pop(k, None)
-
-if "uploaded_bytes" not in st.session_state:
+if uploaded is None:
     st.info("Upload a premaster to begin.")
     st.stop()
 
-# ---------------- Materialize to /tmp per session ----------------
-base = session_tmp_path()
-in_path = os.path.join(base, st.session_state["uploaded_name"].replace(" ", "_"))
-with open(in_path, "wb") as f:
-    f.write(st.session_state["uploaded_bytes"])
-st.session_state["in_path"] = in_path
+# Only (re)write if a new file arrives
+if (
+    "uploaded_name" not in st.session_state
+    or uploaded.name != st.session_state["uploaded_name"]
+):
+    st.session_state["uploaded_name"] = _safe_name(uploaded.name)
+
+    # Write to /tmp once, streaming (no giant .read())
+    from utils import session_tmp_path
+    base = session_tmp_path()
+    in_path = os.path.join(base, st.session_state["uploaded_name"])
+    try:
+        uploaded.seek(0)  # make sure pointer is at start
+        with open(in_path, "wb") as f:
+            shutil.copyfileobj(uploaded, f, length=1024 * 1024)  # 1MB chunks
+        uploaded.seek(0)
+    except Exception as e:
+        st.error("❌ Failed writing the uploaded file to /tmp.")
+        st.exception(e)
+        st.stop()
+
+    # Clear stale analysis and remember the new path
+    st.session_state.pop("analysis", None)
+    st.session_state["in_path"] = in_path
+
+# Use the path from session for the rest of the app
+in_path = st.session_state["in_path"]
 
 # ---------------- Controls ----------------
 cols = st.columns(3)
