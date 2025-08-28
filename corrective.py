@@ -27,7 +27,7 @@ def _clamp_notches(notches: List[dict]) -> List[dict]:
         clean.append({"freq_hz": f, "gain_db": g, "q": q})
     return clean
 
-def llm_corrective_cleanup(
+def llm_corrective_eq8(
     api_key: str | None,
     analysis: dict,
     user_prompt: str,
