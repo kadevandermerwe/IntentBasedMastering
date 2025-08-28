@@ -236,11 +236,12 @@ from schema import BAND_NAMES  # make sure dsp.py imports BAND_NAMES
 
 def _eq8_expression(eq8: dict) -> str:
     """
-    Build a nested if() expression for firequalizer across the 8 bands.
-    Boundaries follow your schema ranges (approx). We choose upper-cutoff checks:
-      <80, <120, <250, <500, <3500, <8000, <10000, else
+    Returns a firequalizer gain expression for the 8 named bands in BAND_NAMES.
+    The expression is step-wise per band threshold; safe for ffmpeg eval.
     """
+    # default 0.0 dB for any missing band
     g = {k: float(eq8.get(k, 0.0)) for k in BAND_NAMES}
+    # bands (edges): <80, <120, <250, <500, <3500, <8000, <10000, else
     return (
         "if(lt(f,80),{sub},"
         " if(lt(f,120),{low_bass},"
@@ -256,11 +257,11 @@ def _eq8_expression(eq8: dict) -> str:
         " )"
         ")"
     ).format(**g)
-
+    
 def build_fg_eq8_only(eq8: dict) -> str:
     """
-    A pure 8-band firequalizer stage → [out].
-    No loudnorm/limiter. Keeps headroom prior to mastering.
+    Pure 8-band tone (firequalizer) → [out]
+    No loudness or limiting. Intended for the corrective pre-pass.
     """
     expr = _eq8_expression(eq8)
     return f"firequalizer=gain='{expr}'[out]"
@@ -316,4 +317,51 @@ def derive_section_plans_from_single(base_plan: dict):
     drop.setdefault("mb_comp", {})["low_thr_db"] = float(max(-30.0, min(-18.0, drop["mb_comp"].get("low_thr_db", -20) - 2)))
 
     return verse, drop
+
+def _notch_chain(label_in: str, notches: list) -> tuple[str, str]:
+    """
+    Build up to MAX_NOTCHES parametric 'equalizer' notches in series.
+    Returns (filter_snippet, last_label).
+    - Uses FFmpeg equalizer (parametric): equalizer=f=<Hz>:t=q:w=<Q>:g=<dB>
+    """
+    cur = label_in
+    parts = []
+    for i, n in enumerate((notches or [])[:MAX_NOTCHES]):
+        try:
+            f = float(n.get("freq_hz", 1000.0))
+            g = float(n.get("gain_db", -3.0))
+            q = float(n.get("q", 8.0))
+        except Exception:
+            continue
+
+        # clamp to safe limits
+        f = clamp(f, *NOTCH_LIMITS["freq_hz"])
+        g = clamp(g, *NOTCH_LIMITS["gain_db"])
+        q = clamp(q, *NOTCH_LIMITS["q"])
+
+        nxt = f"n{i}"
+        parts.append(f"[{cur}]equalizer=f={f}:t=q:w={q}:g={g}[{nxt}]")
+        cur = nxt
+
+    return (";".join(parts) + (";" if parts else "")), cur
+
+def build_fg_eq8_plus_notches(eq8: dict, notches: list) -> str:
+    """
+    8-band firequalizer followed by up to 3 parametric notches → [out].
+    No loudness/limiting — use in the corrective cleanup stage only.
+    """
+    expr = _eq8_expression(eq8)
+
+    # 8-band first → [pre]
+    chain = f"firequalizer=gain='{expr}'[pre];"
+
+    # optional notches in series
+    notch_snip, last_lbl = _notch_chain("pre", notches or [])
+    chain += notch_snip
+
+    final = last_lbl if notch_snip else "pre"
+    # finalize to a named pad [out]
+    chain += f"[{final}]anull[out]"
+
+    return chain
 
