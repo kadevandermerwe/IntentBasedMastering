@@ -365,3 +365,121 @@ def build_fg_eq8_plus_notches(eq8: dict, notches: list) -> str:
 
     return chain
 
+
+# --- Resonance detection (no SciPy; uses librosa only if available) ---
+import numpy as np
+import soundfile as sf
+
+def detect_resonances_simple(
+    path: str,
+    max_notches: int = 3,
+    min_prom_db: float = 3.0,
+    min_freq: float = 120.0,
+    max_freq: float = 12000.0,
+):
+    """
+    Returns up to `max_notches` notches: [{"freq": Hz, "q": Q, "gain_db": negative dB}, ...]
+    Simple: average spectrum -> smooth baseline -> pick prominent peaks above baseline.
+    """
+    try:
+        import librosa
+    except Exception:
+        # Fallback: no detection without librosa
+        return []
+
+    y, sr = sf.read(path)
+    if y.ndim > 1:
+        y = y.mean(axis=1)
+    y = y.astype(np.float32)
+
+    # Moderate FFT size; wide hop to lower CPU.
+    n_fft = 4096
+    hop   = 1024
+    S = np.abs(librosa.stft(y, n_fft=n_fft, hop_length=hop))
+    mag = S.mean(axis=1) + 1e-12
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+
+    # dB + smooth baseline (moving average)
+    mag_db = 20.0 * np.log10(mag)
+    win = 9
+    kernel = np.ones(win, dtype=float) / win
+    base_db = np.convolve(mag_db, kernel, mode="same")
+
+    dev = mag_db - base_db
+
+    # pick candidate peaks within freq range and above prominence
+    idxs = []
+    for i in range(1, len(dev) - 1):
+        f = freqs[i]
+        if f < min_freq or f > max_freq:
+            continue
+        if dev[i] > min_prom_db and dev[i] > dev[i-1] and dev[i] > dev[i+1]:
+            idxs.append(i)
+
+    # sort by prominence; pick top K
+    idxs = sorted(idxs, key=lambda i: dev[i], reverse=True)[:max_notches]
+
+    def q_from_freq(f):
+        # wider in lows, tighter in highs
+        if f < 200:   return 4.0
+        if f < 1000:  return 6.0
+        if f < 5000:  return 8.0
+        return 10.0
+
+    notches = []
+    for i in idxs:
+        f = float(freqs[i])
+        prom = float(dev[i])
+        gain = -float(min(3.0, prom * 0.6))  # cap at -3 dB
+        notches.append({"freq": round(f, 1), "q": round(q_from_freq(f), 2), "gain_db": round(gain, 2)})
+    return notches
+
+
+def _make_notch_prefix(notches: list[dict]) -> str:
+    """
+    Build a comma-chained prefix of parametric notches that feeds into the main chain.
+    Example: "equalizer=f=3125:width_type=q:w=9:g=-2.5, equalizer=..., "
+    """
+    if not notches:
+        return ""
+    parts = []
+    for n in notches:
+        f = float(n.get("freq", 0))
+        q = float(n.get("q", 8.0))
+        g = float(n.get("gain_db", -2.0))
+        # FFmpeg "equalizer" is a peaking EQ
+        parts.append(f"equalizer=f={f}:width_type=q:w={q}:g={g}")
+    # join into a single chain, keep trailing comma and space
+    return ", ".join(parts) + ", "
+
+
+# --- 8-band piecewise EQ (firequalizer) ---
+BAND_BOUNDS = [
+    ("sub",        80),
+    ("low_bass",  120),
+    ("high_bass", 250),
+    ("low_mids",  500),
+    ("mids",     3500),
+    ("high_mids",8000),
+    ("highs",   10000),
+    ("air",     20000),
+]
+
+def _firequalizer_piecewise_from_eq8(eq8: dict) -> str:
+    """
+    Build firequalizer gain expression piecewise by band boundaries.
+    """
+    # Ensure order and defaults
+    vals = {name: float(eq8.get(name, 0.0)) for name, _ in BAND_BOUNDS}
+    # Build nested if(lt(f,<bound>), gain, ...)
+    expr = ""
+    for idx, (name, bound) in enumerate(BAND_BOUNDS):
+        gain = vals[name]
+        if idx == 0:
+            expr = f"if(lt(f,{bound}),{gain},"
+        elif idx < len(BAND_BOUNDS) - 1:
+            expr += f" if(lt(f,{bound}),{gain},"
+        else:
+            # last band (air): close parens
+            expr += f"{gain}" + ")" * (len(BAND_BOUNDS) - 1)
+    return expr
