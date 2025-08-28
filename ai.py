@@ -11,10 +11,12 @@ def _strip_proxies_env():
         if k in os.environ:
             os.environ.pop(k, None)
 
+getKey=st.secrets.get("OPENAI_API_KEY", "").strip()
+
 def llm_plan(analysis, intent, user_prompt, model, reference_txt="", reference_weight=0.0):
     """Intent + analysis + (optional) reference → STRICT JSON plan (single or sectioned)."""
     # Key check
-    if "OPENAI_API_KEY" not in st.secrets or not st.secrets["OPENAI_API_KEY"]:
+    if not getKey:
         return None, "LLM disabled or missing key."
 
     # --- kill proxies that trigger TypeError in httpx on this platform ---
