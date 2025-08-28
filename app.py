@@ -64,6 +64,7 @@ st.caption(
 )
 
 # ---------------- Upload ----------------
+MAX_MB = 500 
 uploaded = st.file_uploader(
     "Upload premaster (WAV/AIFF/FLAC — no limiter, ~−6 dBFS headroom)",
     type=["wav", "aiff", "aif", "flac"],
