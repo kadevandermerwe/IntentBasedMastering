@@ -155,71 +155,61 @@ def firequalizer_from_eq8(eq8: dict) -> str:
 
     return f"firequalizer=gain='{expr}'"
 
-def build_fg_from_plan(plan: dict) -> str:
+def build_fg_from_plan(plan: dict, *, notches: list[dict] | None = None) -> str:
     """
-    Translate a single LLM plan dict → FFmpeg filtergraph (string).
-    Expects keys:
-      - targets: lufs_i, true_peak_db
-      - mb_comp: low_thr_db, mid_thr_db, high_thr_db
-      - saturation: drive_db
-      - eq8 (preferred) or eq (legacy)
+    Translate plan -> FFmpeg filtergraph.
+    Supports optional `notches` (pre-corrective), eq8 (piecewise), and the existing multiband + loudnorm.
     """
-    # ----- targets -----
-    tgt = plan.get("targets", {}) or {}
-    tgt_lufs = float(tgt.get("lufs_i", -11.5))
-    tgt_tp   = float(tgt.get("true_peak_db", -1.2))
+    # Targets
+    tgt_lufs = float(plan.get("targets", {}).get("lufs_i", -11.5))
+    tgt_tp   = float(plan.get("targets", {}).get("true_peak_db", -1.2))
 
-    # ----- thresholds (define them! this fixed your NameError) -----
+    # Multiband thresholds
     mb = plan.get("mb_comp", {}) or {}
-    lo_thr  = float(mb.get("low_thr_db",  -20))
-    mid_thr = float(mb.get("mid_thr_db",  -24))
-    hi_thr  = float(mb.get("high_thr_db", -26))
+    lo_thr = float(mb.get("low_thr_db",  -20))
+    mid_thr= float(mb.get("mid_thr_db",  -24))
+    hi_thr = float(mb.get("high_thr_db", -26))
 
-    # ratios tuned gentle; you can tweak if you like
-    lo_ratio, mid_ratio, hi_ratio = 2.0, 1.6, 1.3
-
-    # ----- saturation pre-gain -----
-    sat = plan.get("saturation", {}) or {}
-    drive_db = float(sat.get("drive_db", 1.0))
-    drive_in = 1.0 + 0.1 * max(0.0, drive_db)   # convert “dB-ish” into linear-ish gain
-
-    # ----- EQ (prefer 8-band eq8; fallback to legacy 3-band eq) -----
+    # EQ
     eq8 = plan.get("eq8")
-    eq_expr = None
+    eq3 = plan.get("eq")
+
+    # Saturation "drive" (we model as a touch of pre-gain)
+    drive_db = float(plan.get("saturation", {}).get("drive_db", 1.0))
+    drive_in = 1.0 + 0.1 * max(0.0, drive_db)
+
+    # --- pre-corrective prefix (parametric notches) ---
+    prefix = _make_notch_prefix(notches or [])
+
+    # --- multiband split & gentle comp, then sum back ---
+    mb_chain = (
+      "asplit=3[lo][mid][hi];"
+      f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio=2.0:attack=10:release=180[loC];"
+      f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio=1.6:attack=16:release=220[midC];"
+      f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio=1.3:attack=12:release=180[hiC];"
+      "[loC][midC][hiC]amix=inputs=3[mb];"
+    )
+
+    # --- EQ stage: prefer eq8 piecewise; fallback to legacy 3-band ---
     if isinstance(eq8, dict):
-        eq_expr = _eq8_firequalizer_expr(eq8)
+        expr = _firequalizer_piecewise_from_eq8(eq8)
+        eq_stage = f"[mb]firequalizer=gain='{expr}'[eq];"
     else:
-        # legacy 3-band support (kept for safety)
-        eq3 = plan.get("eq", {}) or {}
-        low_shelf  = float(eq3.get("low_shelf_db",  0.0))
-        mud_cut    = float(eq3.get("mud_cut_db",    0.0))
-        high_shelf = float(eq3.get("high_shelf_db", 0.0))
-        eq_expr = (
-            "firequalizer=gain='"
-            f"if(lt(f,120),{low_shelf}, "
-            f" if(lt(f,300),{mud_cut}, "
-            f"  if(gt(f,12000),{high_shelf},0)))'"
+        lo_gain  = float((eq3 or {}).get("low_shelf_db", 0.0))
+        mud_cut  = float((eq3 or {}).get("mud_cut_db",   0.0))
+        hi_gain  = float((eq3 or {}).get("high_shelf_db",0.0))
+        eq_stage = (
+          "[mb]"
+          f"firequalizer=gain='if(lt(f,120),{lo_gain}, if(lt(f,300),{mud_cut}, if(gt(f,12000),{hi_gain},0)))'"
+          "[eq];"
         )
 
-    # ----- multiband split → comp → sum -----
-    # NOTE: we removed amix normalize flag; Fire up/downstream manages level.
-    mb_chain = (
-        "asplit=3[lo][mid][hi];"
-        f"[lo]lowpass=f=120,acompressor=threshold={lo_thr}dB:ratio={lo_ratio}:attack=10:release=180[loC];"
-        f"[mid]bandpass=f=120:width_type=o:w=3,acompressor=threshold={mid_thr}dB:ratio={mid_ratio}:attack=16:release=220[midC];"
-        f"[hi]highpass=f=4000,acompressor=threshold={hi_thr}dB:ratio={hi_ratio}:attack=12:release=180[hiC];"
-        "[loC][midC][hiC]amix=inputs=3[mb]"
-    )
+    sat_stage  = f"[eq]volume={drive_in}[sat];"
+    loud_stage = f"[sat]loudnorm=I={tgt_lufs}:LRA=9:TP={tgt_tp}:dual_mono=true:linear=true[out]"
 
-    # ----- chain it all -----
-    # [mb] -> firequalizer -> volume (sat) -> loudnorm -> [out]
-    fg = (
-        mb_chain + ";" +
-        "[mb]" + eq_expr + "[eq];" +
-        f"[eq]volume={drive_in}[sat];" +
-        f"[sat]loudnorm=I={tgt_lufs}:LRA=9:TP={tgt_tp}:dual_mono=true:linear=true[out]"
-    )
-    return fg
+    # If we have notches, they must be comma-chained in front of the first filter (asplit)
+    # e.g., "equalizer=..., equalizer=..., asplit=3..."
+    return prefix + mb_chain + eq_stage + sat_stage + loud_stage
 
 
 def render_variant(in_wav: str, out_wav: str, filtergraph: str):
