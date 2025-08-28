@@ -19,6 +19,10 @@ reference_weight = st.slider("Reference weight", 0.0, 1.0, 0.0 if not reference_
 use_llm   = st.sidebar.checkbox("Use OpenAI LLM planner (required)", value=True, disabled=True)
 llm_model = st.sidebar.text_input("OpenAI model", value="gpt-4o-mini")
 st.sidebar.caption("Set OPENAI_API_KEY in Streamlit Cloud → Settings → Secrets.")
+with st.sidebar.expander("🔍 Debug: secrets"):
+    st.write("keys:", list(st.secrets.keys()))
+    st.write("OPENAI_API_KEY present:", bool(st.secrets.get("OPENAI_API_KEY","").strip()))
+
 
 # ---- Intent controls
 prompt_txt = st.text_area("Intent / Reference (e.g. “dark, preserve dynamics, tape; like Soma by Return of the Jaded”.)")
@@ -90,7 +94,7 @@ st.json(analysis.get("bands_pct_8", {}))
 # ---- LLM Plan (required)
 api_key = st.secrets.get("OPENAI_API_KEY", "")
 plan = None; plan_msg = None
-plan, msg = llm_plan(api_key, analysis, intent, prompt_txt, llm_model, reference_txt, reference_weight)
+plan, msg = llm_plan(api_key=api_key, analysis, intent, prompt_txt, llm_model, reference_txt, reference_weight)
 if not plan:
     
     st.error(f"LLM plan unavailable. {plan_msg}  \nSet your OPENAI_API_KEY and try again.")
