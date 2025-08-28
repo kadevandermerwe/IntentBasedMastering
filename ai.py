@@ -2,7 +2,8 @@
 import os, json
 import streamlit as st
 from utils import clamp
-from dsp import BAND_NAMES
+from schema import BAND_NAMES
+
 
 # ---------------- helpers ----------------
 
