@@ -13,6 +13,7 @@ from dsp import (
 from ai import llm_plan
 from corrective import llm_corrective_eq8, apply_corrective_eq
 from diagnostics import validate_plan  # start using diagnostics!
+from corrective import llm_corrective_cleanup, apply_corrective_eq
 
 # --- Page ---
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="centered")
@@ -121,9 +122,8 @@ st.json(analysis.get("bands_pct_8", {}))
 #---Pre-clean Corrective eq--#
 master_input_path = in_path
 if preclean:
-    # Ask LLM for corrective eq8
     api_key = st.secrets.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
-    corr_eq8, corr_msg = llm_corrective_eq8(
+    corr_eq8, corr_notches, corr_msg = llm_corrective_cleanup(
         api_key=api_key,
         analysis=analysis,
         user_prompt=prompt_txt,
@@ -131,12 +131,12 @@ if preclean:
     )
     if corr_eq8:
         st.subheader("Corrective EQ (pre-master)")
-        st.json(corr_eq8)
+        st.json({"eq8": corr_eq8, "notches": corr_notches or []})
         corrected_path = os.path.join(os.path.dirname(in_path), "premaster_corrected.wav")
         try:
-            apply_corrective_eq(in_path, corrected_path, corr_eq8)
+            apply_corrective_eq(in_path, corrected_path, corr_eq8, corr_notches)
             st.audio(corrected_path)
-            # Re-analyze corrected file and use THAT for planning/mastering
+            # Re-analyze corrected file
             analysis = analyze_audio(corrected_path)
             st.caption("Re-analysis after corrective cleanup")
             st.json(analysis)
