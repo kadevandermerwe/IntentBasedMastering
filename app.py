@@ -89,25 +89,35 @@ st.subheader("Tonal balance (8 bands)")
 st.json(analysis.get("bands_pct_8", {}))
 
 # ---- LLM Plan (required)
-api_key = st.secrets.get("OPENAI_API_KEY", "")
-with st.sidebar.expander("🔍 Debug: secrets"):
-    st.write("keys:", list(st.secrets.keys()))
-    st.write("OPENAI_API_KEY present:", bool(st.secrets.get("OPENAI_API_KEY","").strip()))
+# --- LLM Plan (required) ---
+# Pull the key once and pass into llm_plan explicitly
+api_key = st.secrets.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
 
-plan = None; plan_msg = None
-plan, msg = llm_plan(analysis, intent, prompt_txt, llm_model, reference_txt, reference_weight, api_key=api_key)
-if not plan:
-    
-    st.error(f"LLM plan unavailable. {plan_msg}  \nSet your OPENAI_API_KEY and try again.")
-    st.stop()
+# Loud diagnostics in the UI (remove later)
+st.sidebar.write(f"🧪 Secrets has key: {'yes' if st.secrets.get('OPENAI_API_KEY') else 'no'}")
+st.sidebar.write(f"🧪 Env has key: {'yes' if os.environ.get('OPENAI_API_KEY') else 'no'}")
+st.sidebar.write(f"🧪 Using key length: {len(api_key) if api_key else 0}")
 
-st.subheader("AI Plan")
-st.caption(
-    f"LLM plan → LUFS {plan['targets']['lufs_i']:.1f}, TP {plan['targets']['true_peak_db']:.1f} | "
-    f"Ref bias: {reference_weight:.2f} | EQ8: sub {plan['eq8']['sub']:+.1f} … air {plan['eq8']['air']:+.1f}"
+# Whatever you use for reference fields:
+reference_txt = st.session_state.get("reference_txt", "")
+reference_weight = float(st.session_state.get("reference_weight", 0.0))
+
+plan, msg = llm_plan(
+    analysis=analysis,
+    intent=intent,
+    user_prompt=prompt_txt,
+    model=llm_model,
+    reference_txt=reference_txt,
+    reference_weight=reference_weight,
+    api_key=api_key,  # <-- IMPORTANT: keyword argument
 )
 
-st.code(json.dumps(plan, indent=2))
+if not plan:
+    st.error(f"LLM plan unavailable. {msg}\nSet your OPENAI_API_KEY and try again.")
+else:
+    st.success("LLM plan OK")
+    st.subheader("AI Plan")
+    st.code(json.dumps(plan, indent=2))
 
 # ---- Generate masters
 if gen_click:
