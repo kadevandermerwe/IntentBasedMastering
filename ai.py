@@ -3,6 +3,7 @@ import os, json
 import streamlit as st
 from utils import clamp
 from schema import BAND_NAMES
+from ai_client import make_client 
 
 
 # ---------------- helpers ----------------
@@ -58,7 +59,7 @@ def llm_plan(
 
     # Create client *after* sanitizing env
     try:
-        client = OpenAI(api_key=key)
+        client = make_client(api_key)   # instead of OpenAI(api_key=key)
     except Exception as e:
         return None, f"Failed to init OpenAI client: {e}"
 
