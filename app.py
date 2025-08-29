@@ -6,6 +6,7 @@ import altair as alt
 import streamlit as st
 from streamlit.components.v1 import html as components_html
 import random, re
+from imgs import 1.png, 2.png
 
 
 from utils import session_tmp_path
@@ -275,7 +276,7 @@ h2 { font-size: 16px !important; }
 st.markdown("""
     <div class='vale-nav'>
         <div style='opacity:.65;'>Mastering Engineer</div>
-        <div style='font-size:20px; font-weight:600;'>Vale</div>
+        <img src='../imgs/1.png'>
         <div style='opacity:.6;'>You create ideas, we make them real.</div>
     </div>""",
     unsafe_allow_html=True
