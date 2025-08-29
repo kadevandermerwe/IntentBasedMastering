@@ -76,7 +76,7 @@ body {margin: auto;
 /* Avatar */
 .vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 
-.vale-nav {display: flex; position absolute; top: 0px;}
+.vale-nav {display: flex; position absolute; top: 0px; align-items: center;}
 
 .vale-avatar {
   position: relative;
