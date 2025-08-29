@@ -229,7 +229,7 @@ h2 { font-size: 16px !important; }
 # Top bar (plugin-like)
 st.markdown("""
     <div class='vale-nav'>
-        <div style='display:flex; gap:10px;align-items:center;'>
+        <div style='display:flex; gap:10px;align-items:centre;'>
             <div style='font-size:40px; font-weight:600;'>Vale</div>
             <div style='opacity:.65;'>Mastering Engineer</div>
         </div>
