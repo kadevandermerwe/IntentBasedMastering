@@ -94,7 +94,7 @@ def render_chat(
           padding: 10px;
         }}
         .hdr {{
-          display:flex; align-items:center; gap:12px; margin-bottom:10px;
+          display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px;
         }}
         .avatar {{
           display:flex;
