@@ -63,6 +63,8 @@ h1, .stMarkdown h1 { margin: 0 !important; }
 
 /* our navbar sits at the very top */
 .vale-nav {
+  display:flex;
+  justify-content:space-between;
   position: sticky;     /* stays at top on scroll */
   top: 0;
   z-index: 1000;
