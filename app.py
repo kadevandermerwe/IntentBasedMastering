@@ -73,7 +73,6 @@ body {
     margin: auto;
     padding: 10px;
     max-width: 90%;
-    margin-top: 0;
     
     }
 
