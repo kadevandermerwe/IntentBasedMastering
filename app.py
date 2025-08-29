@@ -19,6 +19,7 @@ from dsp import (
 from ai import llm_plan
 from diagnostics import validate_plan
 from corrective import llm_corrective_cleanup, apply_corrective_eq
+from chat_ui import render_chat
 
 # ---------------- Page / Theme ----------------
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
@@ -210,85 +211,6 @@ def init_chat_state():
 def add_chat(role: str, text: str):
     st.session_state["chat"].append({"role": role, "text": text})
 
-def _autoscroll_script(div_id: str):
-    # Inject this right after the messages so it pins to that container
-    components_html(f"""
-    <div></div>
-    <script>
-    (function(){{
-      const ID = '{div_id}';
-      function scrollBox(){{
-        try {{
-          const box = window.parent.document.getElementById(ID);
-          if (box) box.scrollTop = box.scrollHeight;
-        }} catch(e) {{}}
-      }}
-      // initial + retries
-      scrollBox(); setTimeout(scrollBox, 60); setTimeout(scrollBox, 200);
-      // observe new messages
-      try {{
-        const box = window.parent.document.getElementById(ID);
-        if (box){{
-          const obs = new MutationObserver(scrollBox);
-          obs.observe(box, {{childList:true, subtree:true}});
-        }}
-      }} catch(e) {{}}
-    }})();
-    </script>
-    """, height=0)
-
-def render_chatbox(container, div_id: str = "vale-chatbox"):
-    # Make sure chat history exists
-    if "chat" not in st.session_state:
-        st.session_state["chat"] = []
-        add_chat("assistant", vale_say("drop me a premaster when you’re ready—i’ll give it a quick once-over."))
-
-    with container:
-        # Header
-        st.markdown("""
-        <div class='vale-chat-panel'>
-          <div class='vale-header'>
-            <div class='vale-avatar'>V</div>
-            <div>
-              <h3 style="margin:0; font-weight:700;">Vale · Console</h3>
-              <div class='vale-sub'>always on your team</div>
-            </div>
-          </div>
-        """, unsafe_allow_html=True)
-
-        # Messages area
-        st.markdown(f"<div id='{div_id}'>", unsafe_allow_html=True)
-        for m in st.session_state["chat"]:
-            role = (m.get("role") or "assistant").lower()
-            cls = "assistant" if role != "user" else "user"
-            st.markdown(
-                f"<div class='vale-msg {cls}'>"
-                f"<div class='vale-role'>{role.upper()}</div>"
-                f"<div>{_esc(m.get('text',''))}</div>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Auto-scroll hooks *inside the same container*
-        _autoscroll_script(div_id)
-
-        # Input row
-        st.markdown("<div class='vale-input-row'>", unsafe_allow_html=True)
-        user_txt = st.text_input("Message", key="vale_chat_input", label_visibility="collapsed",
-                                 placeholder="Type to Vale…")
-        send = st.button("Send")
-        st.markdown("</div></div>", unsafe_allow_html=True)  # close vale-chat-panel
-
-        if send and (user_txt or "").strip():
-            add_chat("user", user_txt.strip())
-            add_chat("assistant", vale_say("nice—i’ll fold that into the next pass."))
-            st.experimental_rerun()
-
-
-
-       
-
 
 VALE_OPENERS = [
   "so…", "okay—", "alright,", "cool—", "nice—", "gotcha.", "heads up—",
@@ -443,7 +365,7 @@ with right:
     st.markdown("<h2>Vale</h2>", unsafe_allow_html=True)
 
     container = st.container()         # anchor
-    render_chatbox(container) 
+    render_chat(container) 
 
     # ANALYZE
     if analyze_click or "analysis" not in st.session_state:
