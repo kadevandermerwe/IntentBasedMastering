@@ -138,6 +138,8 @@ html, body, .block-container {
   background: var(--bg) !important;
   color: var(--ink) !important;
   font-family: var(--mono) !important;
+  margin:0 !important;
+  padding:0 !important;
   
 }
 
