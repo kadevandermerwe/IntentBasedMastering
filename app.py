@@ -20,6 +20,18 @@ from ai import llm_plan
 from diagnostics import validate_plan
 from corrective import llm_corrective_cleanup, apply_corrective_eq
 
+# Top bar (plugin-like)
+st.markdown(
+    "<div class='vale-panel' style='display:flex; align-items:center; justify-content:space-between;'>"
+    "<div style='display:flex; gap:10px; align-items:center;'>"
+    "<div style='font-size:18px; font-weight:600;'>🎛️ Vale Mastering Assistant</div>"
+    "<div style='opacity:.65'>AI Adaptive • 3 Variations</div>"
+    "</div>"
+    "<div style='opacity:.6'>You create ideas, we make them real.</div>"
+    "</div>",
+    unsafe_allow_html=True
+)
+
 def _esc(s: str) -> str:
     return (s or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
 
@@ -31,6 +43,33 @@ def init_chat_state():
 
 def add_chat(role: str, text: str):
     st.session_state["chat"].append({"role": role, "text": text})
+
+def autoscroll_chatbox():
+    components_html("""
+    <div></div>
+    <script>
+    (function(){
+      function scrollBox(){
+        try{
+          const box = window.parent.document.querySelector('#vale-chatbox');
+          if (box){ box.scrollTop = box.scrollHeight; }
+        }catch(e){}
+      }
+      // initial & a couple of retries
+      scrollBox();
+      setTimeout(scrollBox, 60);
+      setTimeout(scrollBox, 200);
+      // keep pinned with mutations
+      try{
+        const box = window.parent.document.querySelector('#vale-chatbox');
+        if (box){
+          const obs = new MutationObserver(() => scrollBox());
+          obs.observe(box, {childList:true, subtree:true});
+        }
+      }catch(e){}
+    })();
+    </script>
+    """, height=0)
 
 def render_chatbox():
     # Bordered panel
@@ -105,36 +144,8 @@ def vale_say(message: str) -> str:
     msg = _condense_numbers(msg)
     return f"{opener} {msg[0].lower()}{msg[1:] if len(msg)>1 else ''}"
 
-# Use:
-# add_chat("assistant", vale_say("Mids are +2.3 dB vs avg; kick energy is heavy ~120–200 Hz, true peak is +0.3 dB."))
 
 
-def autoscroll_chatbox():
-    components_html("""
-    <div></div>
-    <script>
-    (function(){
-      function scrollBox(){
-        try{
-          const box = window.parent.document.querySelector('#vale-chatbox');
-          if (box){ box.scrollTop = box.scrollHeight; }
-        }catch(e){}
-      }
-      // initial & a couple of retries
-      scrollBox();
-      setTimeout(scrollBox, 60);
-      setTimeout(scrollBox, 200);
-      // keep pinned with mutations
-      try{
-        const box = window.parent.document.querySelector('#vale-chatbox');
-        if (box){
-          const obs = new MutationObserver(() => scrollBox());
-          obs.observe(box, {childList:true, subtree:true});
-        }
-      }catch(e){}
-    })();
-    </script>
-    """, height=0)
 
 
 
@@ -299,17 +310,7 @@ h2 { font-size: 16px !important; }
 
 
 
-# Top bar (plugin-like)
-st.markdown(
-    "<div class='vale-panel' style='display:flex; align-items:center; justify-content:space-between;'>"
-    "<div style='display:flex; gap:10px; align-items:center;'>"
-    "<div style='font-size:18px; font-weight:600;'>🎛️ Vale Mastering Assistant</div>"
-    "<div style='opacity:.65'>AI Adaptive • 3 Variations</div>"
-    "</div>"
-    "<div style='opacity:.6'>You create ideas, we make them real.</div>"
-    "</div>",
-    unsafe_allow_html=True
-)
+
 
 # ---------------- Session helpers (chat + base dir) ----------------
 if "chat" not in st.session_state:
