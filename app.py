@@ -160,8 +160,9 @@ html, body, .block-container {
 
 body {
     margin: auto;
+    margin-top:-1rem;
     padding-top: -2rem;
-    max-width: 70%;
+    max-width: 100%;
     overflow:visible;
     
     }
