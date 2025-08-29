@@ -248,31 +248,30 @@ if analyze_click or "analysis" not in st.session_state:
                  f"analyzed your track—lufs: **{a['lufs_integrated']:.2f}**, "
                  f"true peak (est.): **{a['true_peak_dbfs_est']:.2f} dBFS**. "
                  f"the balance leans bass-forward; here’s the curve below.")
-                 try:
-                    wave = tiny_wave_png(master_input_path)  # or in_path
-                    spec = tiny_spectrum_png(master_input_path)
-                    # Tonal curve tiny card (reuse your df -> altair chart rendered earlier if you like;
-                    # for now we just put wave + spec)
-                    html_block = f"""
-                    <div class="thumb">
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                        <div>
-                            <div class="chip">Wave</div>
-                            <img src="{wave}" alt="waveform"/>
-                        </div>
-                        <div>
-                            <div class="chip">Spectrum</div>
-                            <img src="{spec}" alt="spectrum"/>
-                        </div>
-                        </div>
-                    </div>
-                    """
-                    add_chat("assistant", html=html_block)  # IMPORTANT: use html=
-                except Exception:
-                    pass
-    except Exception as e:
+    try:
+        wave = tiny_wave_png(master_input_path)  # or in_path
+        spec = tiny_spectrum_png(master_input_path)
+        # Tonal curve tiny card (reuse your df -> altair chart rendered earlier if you like;
+        # for now we just put wave + spec)
+        html_block = f"""
+        <div class="thumb">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div>
+                <div class="chip">Wave</div>
+                <img src="{wave}" alt="waveform"/>
+            </div>
+            <div>
+                <div class="chip">Spectrum</div>
+                <img src="{spec}" alt="spectrum"/>
+            </div>
+            </div>
+        </div>
+        """
+        add_chat("assistant", html=html_block)  # IMPORTANT: use html=
+    except Exception:
         add_chat("assistant", "analysis had a wobble—try again in a sec?")
         st.exception(e)
+        
 
 # Tonal visual (under chat)
 # Tonal visual (now injected into the chat as an attachment)
@@ -307,28 +306,26 @@ if preclean and "analysis" in st.session_state:
                 st.session_state["analysis"] = analyze_audio(corrected_path)
                 add_chat("assistant", "pre-clean done. i re-analyzed the corrected premaster.")
                 st.audio(corrected_path)
-                try:
-                    wave = tiny_wave_png(master_input_path)  # or in_path
-                    spec = tiny_spectrum_png(master_input_path)
-                    # Tonal curve tiny card (reuse your df -> altair chart rendered earlier if you like;
-                    # for now we just put wave + spec)
-                    html_block = f"""
-                    <div class="thumb">
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                        <div>
-                            <div class="chip">Wave</div>
-                            <img src="{wave}" alt="waveform"/>
-                        </div>
-                        <div>
-                            <div class="chip">Spectrum</div>
-                            <img src="{spec}" alt="spectrum"/>
-                        </div>
-                        </div>
+            try:
+                wave = tiny_wave_png(master_input_path)  # or in_path
+                spec = tiny_spectrum_png(master_input_path)
+                # Tonal curve tiny card (reuse your df -> altair chart rendered earlier if you like;
+                # for now we just put wave + spec)
+                html_block = f"""
+                <div class="thumb">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div>
+                        <div class="chip">Wave</div>
+                        <img src="{wave}" alt="waveform"/>
                     </div>
-                    """
-                    add_chat("assistant", html=html_block)  # IMPORTANT: use html=
-                except Exception:
-                    pass
+                    <div>
+                        <div class="chip">Spectrum</div>
+                        <img src="{spec}" alt="spectrum"/>
+                    </div>
+                    </div>
+                </div>
+                """
+                add_chat("assistant", html=html_block)  # IMPORTANT: use html=
             except Exception as e:
                 add_chat("assistant", "corrective render tripped—continuing without pre-clean.")
                 st.exception(e)
