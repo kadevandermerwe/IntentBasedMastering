@@ -19,6 +19,38 @@ from ai import llm_plan
 from diagnostics import validate_plan
 from corrective import llm_corrective_cleanup, apply_corrective_eq
 from chat_ui import render_chat, add_chat
+# app.py (top, after imports)
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import librosa, librosa.display
+
+def _png_data_url(fig, dpi=120):
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", facecolor=fig.get_facecolor(), edgecolor="none")
+    plt.close(fig)
+    data = base64.b64encode(buf.getvalue()).decode()
+    return f"data:image/png;base64,{data}"
+
+def tiny_wave_png(path, width=320, height=72):
+    y, sr = librosa.load(path, sr=None, mono=True)
+    y = y / (np.max(np.abs(y)) + 1e-9)
+    fig = plt.figure(figsize=(width/96, height/96), dpi=96, facecolor="#0a0f15")
+    ax = fig.add_axes([0,0,1,1])
+    ax.plot(np.linspace(0, len(y)/sr, len(y)), y, linewidth=0.8)
+    ax.axis("off")
+    return _png_data_url(fig)
+
+def tiny_spectrum_png(path, width=320, height=72):
+    y, sr = librosa.load(path, sr=None, mono=True)
+    S = np.abs(librosa.stft(y, n_fft=1024, hop_length=256))**2
+    S_db = librosa.power_to_db(S, ref=np.max)
+    fig = plt.figure(figsize=(width/96, height/96), dpi=96, facecolor="#0a0f15")
+    ax = fig.add_axes([0,0,1,1])
+    librosa.display.specshow(S_db, sr=sr, hop_length=256, x_axis=None, y_axis=None, cmap="magma", ax=ax)
+    ax.axis("off")
+    return _png_data_url(fig)
+
 
 # ---------- assets ----------
 def img_to_base64(path: str) -> str:
@@ -48,14 +80,24 @@ html, body { margin:0 !important; padding:0 !important; background:#FAF9F6; }
 
 /* Typography + controls */
 :root{
-  --panel:#FFFFFF; --ink:#2F3640; --ink-dim:#6B7280; --border:#E6EAF1; --accent:#5EA2FF; --accent-ghost:rgba(94,162,255,.10);
-  --mono:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Courier New", monospace; --radius:4px;
+  --bg: #0b0f15;
+  --panel: #10141b;
+  --panel-soft: #0c1016;
+  --ink: #e6e9ee;
+  --ink-dim: #93a0b4;
+  --border: #1b2330;
+  --accent: #8ab4ff;
+  --accent-ghost: rgba(138,180,255,.14);
+  --radius: 6px;
 }
-html, body { color:var(--ink); font-family:var(--mono); }
-.stTextInput input, .stTextArea textarea { background:#FBFCFE; border:1px solid var(--border); border-radius:var(--radius); }
-.stTextInput input:focus, .stTextArea textarea:focus { outline:2px solid var(--accent-ghost); border-color:var(--accent); box-shadow:none; }
-.stButton>button { background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; }
-.stButton>button:hover { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-ghost); }
+html, body, .block-container { background: var(--bg) !important; color: var(--ink) !important; }
+.stTextInput input, .stTextArea textarea {
+  background: #0f141b; border:1px solid var(--border); border-radius: var(--radius); color:var(--ink);
+}
+.stButton>button { background:#0f141b; border:1px solid var(--border); border-radius: var(--radius); color:var(--ink); }
+.stButton>button:hover { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-ghost); }
+#vale-chatbox, .vale-chat-panel { background: var(--panel-soft); border:1px solid var(--border); border-radius: var(--radius); }
+
 
 /* Cards */
 .vale-card { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:12px; }
@@ -200,11 +242,34 @@ in_path = st.session_state["in_path"]
 if analyze_click or "analysis" not in st.session_state:
     try:
         st.session_state["analysis"] = analyze_audio(in_path)
+        
         a = st.session_state["analysis"]
         add_chat("assistant",
                  f"analyzed your track—lufs: **{a['lufs_integrated']:.2f}**, "
                  f"true peak (est.): **{a['true_peak_dbfs_est']:.2f} dBFS**. "
                  f"the balance leans bass-forward; here’s the curve below.")
+                 try:
+                    wave = tiny_wave_png(master_input_path)  # or in_path
+                    spec = tiny_spectrum_png(master_input_path)
+                    # Tonal curve tiny card (reuse your df -> altair chart rendered earlier if you like;
+                    # for now we just put wave + spec)
+                    html_block = f"""
+                    <div class="thumb">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <div>
+                            <div class="chip">Wave</div>
+                            <img src="{wave}" alt="waveform"/>
+                        </div>
+                        <div>
+                            <div class="chip">Spectrum</div>
+                            <img src="{spec}" alt="spectrum"/>
+                        </div>
+                        </div>
+                    </div>
+                    """
+                    add_chat("assistant", html=html_block)  # IMPORTANT: use html=
+                except Exception:
+                    pass
     except Exception as e:
         add_chat("assistant", "analysis had a wobble—try again in a sec?")
         st.exception(e)
@@ -242,6 +307,28 @@ if preclean and "analysis" in st.session_state:
                 st.session_state["analysis"] = analyze_audio(corrected_path)
                 add_chat("assistant", "pre-clean done. i re-analyzed the corrected premaster.")
                 st.audio(corrected_path)
+                try:
+                    wave = tiny_wave_png(master_input_path)  # or in_path
+                    spec = tiny_spectrum_png(master_input_path)
+                    # Tonal curve tiny card (reuse your df -> altair chart rendered earlier if you like;
+                    # for now we just put wave + spec)
+                    html_block = f"""
+                    <div class="thumb">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <div>
+                            <div class="chip">Wave</div>
+                            <img src="{wave}" alt="waveform"/>
+                        </div>
+                        <div>
+                            <div class="chip">Spectrum</div>
+                            <img src="{spec}" alt="spectrum"/>
+                        </div>
+                        </div>
+                    </div>
+                    """
+                    add_chat("assistant", html=html_block)  # IMPORTANT: use html=
+                except Exception:
+                    pass
             except Exception as e:
                 add_chat("assistant", "corrective render tripped—continuing without pre-clean.")
                 st.exception(e)
