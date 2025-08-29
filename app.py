@@ -169,7 +169,7 @@ body {
     padding-top: -2rem;
     
     }
-html {
+main {
 background: #fff;
 }
 
