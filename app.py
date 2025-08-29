@@ -191,7 +191,7 @@ h2 { font-size: 16px !important; }
 st.markdown(
     "<div class='vale-nav'>"
     "<div style='display:sticky; gap:10px; align-items:center;'>"
-    "<div style='font-size:40px; font-weight:600; text-align: centre;'>Vale</div>"
+    "<div style='font-size:40px; font-weight:600; text-align: top;'>Vale</div>"
     "<div style='opacity:.65; text-align: centre;'>Mastering Engineer</div>"
     "</div>"
     "<div style='opacity:.6; text-align: centre;'>You create ideas, we make them real.</div>"
