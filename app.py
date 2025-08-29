@@ -152,6 +152,8 @@ body {
 
     margin-top: -3rem;
     padding: 0;
+    padding-left:2rem;
+    padding-right:2rem;
     
     }
 
