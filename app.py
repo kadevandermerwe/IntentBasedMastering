@@ -69,7 +69,7 @@ html, body, .block-container {
 
 
 /* Avatar */
-.vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.vale-panel { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 
 .vale-avatar {
   position: relative;
