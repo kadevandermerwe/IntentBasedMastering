@@ -107,8 +107,8 @@ def render_chat(
 
         .msg {{ border: 1px dashed var(--border); border-radius: 4px;
                 padding: 8px 10px; margin: 0 0 8px 0; }}
-        .msg.user {{ background: rgba(94,162,255,.05); }}
-        .msg.assistant {{ background: linear-gradient(0deg, rgba(94,162,255,.07), rgba(94,162,255,.07)); }}
+        .msg.user {{ background: transparent; }}
+        .msg.assistant {{ background: transparent; }}
         .msg-role {{ font-size: 10px; color: var(--ink-dim); margin-bottom: 4px; letter-spacing: .3px; text-transform: uppercase; }}
         .msg-body {{ font-size: 13px; color: var(--ink); line-height: 1.35; }}
       </style>
