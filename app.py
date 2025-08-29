@@ -152,7 +152,7 @@ st.markdown("""
 
 .vale-shell {
     width: 70%;
-    margin: auto;
+    margin: 0 auto;
 }
 
 /* Page canvas */
@@ -164,7 +164,6 @@ html, body, .block-container {
 }
 
 body {
-    margin: auto;
     margin-top:-2rem;
     padding-top: -2rem;
     padding-right:3rem;
