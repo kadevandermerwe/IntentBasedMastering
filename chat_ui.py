@@ -16,9 +16,9 @@ logo_path = "imgs/2.png"
 logo_base64 = img_to_base64(logo_path)
 
 if logo_path:
-        avatar_inner = f'<img src="data:image/png;base64,{logo_path}" style="width:100%;height:100%;border-radius:50%;">'
-    else:
-        avatar_inner = _esc(avatar_text or "V")
+    avatar_inner = f'<img src="data:image/png;base64,{logo_path}" style="width:100%;height:100%;border-radius:50%;">'
+else:
+    avatar_inner = _esc(avatar_text or "V")
 
 def _esc(s: str) -> str:
     return pyhtml.escape(s or "")
