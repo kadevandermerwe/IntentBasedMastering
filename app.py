@@ -23,27 +23,6 @@ from chat_ui import *
 
 # ---------------- Page / Theme ----------------
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
-# after: import altair as alt
-def _vale_altair_theme():
-    return {
-        "config": {
-            "background": "transparent",
-            "axis": {
-                "labelColor": "#2A3542",
-                "titleColor": "#2A3542",
-                "gridColor": "#E6EAF1",
-                "domainColor": "#DDE2EA",
-            },
-            "view": {"stroke": "transparent"},
-            "line": {"strokeWidth": 2},
-            "point": {"filled": True, "size": 60},
-        }
-    }
-alt.themes.register("vale_light_cli", _vale_altair_theme)
-alt.themes.enable("vale_light_cli")
-
-import streamlit as st
-from streamlit.components.v1 import html as st_html
 
 # --- Nuke Streamlit top spacing aggressively ---
 st.markdown("""
@@ -87,44 +66,24 @@ st_html("""
 </script>
 """, height=0)
 
-
-
-# --- remove Streamlit top chrome & padding, zero out h1 margins, pin our navbar ---
-st.markdown("""
-<style>
-/* hide Streamlit's built-in header */
-header[data-testid="stHeader"] { display: none !important; }
-
-/* remove the big default top padding on the main block container */
-main .block-container { padding-top: 0rem !important; }
-
-/* also remove any extra padding injected by the app view container */
-[data-testid="stAppViewContainer"] { padding-top: 0 !important; }
-
-/* hard reset page margins so nothing pushes content down */
-html, body { margin: 0 !important; padding: 0 !important; }
-
-/* Streamlit renders titles with big margins—nuke them globally */
-h1, .stMarkdown h1 { margin: 0 !important; }
-
-/* our navbar sits at the very top */
-.vale-nav {
-  display:flex;
-  justify-content:space-between;
-  position: sticky;     /* stays at top on scroll */
-  top: 0;
-  z-index: 1000;
-  margin: 0;
-  padding: 10px 16px;
-  background: #F7F9FC;                  /* your light panel */
-  border-bottom: 1px solid rgba(0,0,0,.08);
-}
-
-/* optional: make the first block after nav not add extra spacing */
-.v-space-0 { margin-top: 0 !important; padding-top: 0 !important; }
-</style>
-""", unsafe_allow_html=True)
-
+# after: import altair as alt
+def _vale_altair_theme():
+    return {
+        "config": {
+            "background": "transparent",
+            "axis": {
+                "labelColor": "#2A3542",
+                "titleColor": "#2A3542",
+                "gridColor": "#E6EAF1",
+                "domainColor": "#DDE2EA",
+            },
+            "view": {"stroke": "transparent"},
+            "line": {"strokeWidth": 2},
+            "point": {"filled": True, "size": 60},
+        }
+    }
+alt.themes.register("vale_light_cli", _vale_altair_theme)
+alt.themes.enable("vale_light_cli")
 
 # Inject DAW-like CSS (matte, flat, minimal)
 st.markdown("""
@@ -143,6 +102,18 @@ st.markdown("""
   --accent-ghost: rgba(94,162,255,0.10);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Courier New", monospace;
   --radius: 4px;           /* hard corners */
+}
+
+.vale-nav {
+  display:flex;
+  justify-content:space-between;
+  position: sticky;     /* stays at top on scroll */
+  top: 0;
+  z-index: 1000;
+  margin: 0;
+  padding: 10px 16px;
+  background: #F7F9FC;                  /* your light panel */
+  border-bottom: 1px solid rgba(0,0,0,.08);
 }
 
 /* Page canvas */
