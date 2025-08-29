@@ -99,7 +99,7 @@ st_html("""
 def _vale_altair_theme():
     return {
         "config": {
-            "background": "transparent",
+            "background": "#fff",
             "axis": {
                 "labelColor": "#2A3542",
                 "titleColor": "#2A3542",
@@ -170,7 +170,7 @@ body {
     
     }
 main {
-background: #fff;
+    background: var(--bg) !important;
 }
 
 .block-container {
