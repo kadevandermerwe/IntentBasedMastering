@@ -216,7 +216,7 @@ def _autoscroll_script(div_id: str):
     <div></div>
     <script>
     (function(){{
-      const ID = "{div_id}";
+      const ID = '{div_id}';
       function scrollBox(){{
         try {{
           const box = window.parent.document.getElementById(ID);
@@ -431,7 +431,7 @@ with left:
 # ===== Handle upload/write =====
 if upload_box is None and "in_path" not in st.session_state:
     with right:
-        add_chat("assistant", "👋 Upload a premaster to begin. I’ll analyze it and suggest musical moves.")
+        add_chat("assistant", "Upload a premaster to begin. I’ll analyze it and suggest musical moves.")
         render_chat()
     st.stop()
 
@@ -446,7 +446,7 @@ if upload_box is not None:
             upload_box.seek(0)
         except Exception as e:
             with right:
-                add_chat("assistant", "❌ I couldn't write your file to disk.")
+                add_chat("assistant", "I couldn't write your file to disk.")
                 render_chat()
                 st.exception(e)
             st.stop()
@@ -460,7 +460,7 @@ in_path = st.session_state["in_path"]
 with right:
     st.markdown("<h2>Vale</h2>", unsafe_allow_html=True)
 
-    render_chatbox()
+    render_chatbox(container)
 
     # ANALYZE
     if analyze_click or "analysis" not in st.session_state:
