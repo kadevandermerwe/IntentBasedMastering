@@ -143,7 +143,7 @@ html, body, .block-container {
 
 body {
     margin: auto;
-    padding: 10px;
+    padding-top: -2rem;
     max-width: 90%;
     
     }
