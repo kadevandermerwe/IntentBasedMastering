@@ -66,7 +66,7 @@ def render_chat(
 
     # Avatar element: either image or letter
     if avatar_img_b64:
-        avatar_inner = f'<img src="data:image/png;base64,{avatar_img_b64}" style="width:100%;height:100%;border-radius:50%;">'
+        avatar_inner = f'<img src="data:image/png;base64,{avatar_img_b64}" style="width:100%;height:100%;border-radius:0%;">'
     else:
         avatar_inner = _esc(avatar_text or "V")
 
@@ -94,7 +94,7 @@ def render_chat(
           display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
         }}
         .avatar {{
-          width:50px;
+          width:100px;
         }}
         .hdr-title {{ margin:0; font-size:16px; font-weight:800; color: var(--ink); }}
         .hdr-sub {{ font-size:12px; color: var(--ink-dim); }}
