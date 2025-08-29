@@ -65,13 +65,14 @@ html, body, .block-container {
   background: var(--bg) !important;
   color: var(--ink) !important;
   font-family: var(--mono) !important;
+  margin: 1px;
 }
 
 
 /* Avatar */
 .vale-panel { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 
-.vale-nav {display: sticky; posiion absolute; top: 0px;}
+.vale-nav {display: sticky; position absolute; top: 0px;}
 
 .vale-avatar {
   position: relative;
