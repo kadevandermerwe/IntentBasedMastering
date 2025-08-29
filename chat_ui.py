@@ -101,7 +101,7 @@ def render_chat(
 
         .box {{
           height: {height-90}px;  /* scrollable area */
-          overflow-y: auto;
+          overflow-y: scroll;
           padding: 8px;
         }}
 
