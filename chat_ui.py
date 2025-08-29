@@ -37,7 +37,7 @@ def render_chat(
     container,
     state_key: str = "chat",
     height: int = 420,    # small letter in circle
-    avatar_img_b64: str | logo  # or pass a base64 PNG if you prefer
+    avatar_img_b64: str | logo = "imgs/2.png" # or pass a base64 PNG if you prefer
 ):
     """
     Renders a single chat panel with autoscroll inside `container`.
