@@ -123,7 +123,6 @@ st.markdown("""
 
 .vale-nav {
   display:flex;
-  text-align: centre;
   justify-content:space-between;
   position: sticky;     /* stays at top on scroll */
   top: 0;
@@ -282,7 +281,7 @@ logo_base64 = img_to_base64(logo_path)
 st.markdown(f"""
     <div class='vale-nav'>
         <div style='opacity:.65;'>Mastering Engineer</div>
-        <img src="data:image/png;base64,{logo_base64}" width="120">
+        <img src="data:image/png;base64,{logo_base64}" width="120" style="margin:0;">
         <div style='opacity:.6;'>You create ideas, we make them real.</div>
     </div>
 """, unsafe_allow_html=True)
