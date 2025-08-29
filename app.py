@@ -127,7 +127,7 @@ st.markdown("""
   position: sticky;     /* stays at top on scroll */
   top: 0;
   z-index: 1000;
-  margin: 0;
+  margin: 0 !important;
   padding: 10px 16px;
   background: #F7F9FC;                  /* your light panel */
   border-bottom: 1px solid rgba(0,0,0,.08);
@@ -145,6 +145,19 @@ body {
     margin: auto;
     padding: 10px;
     max-width: 90%;
+    
+    }
+
+.block-container {
+
+    margin: 0;
+    padding: 0px;
+    
+    }
+.html {
+
+    margin: 0;
+    padding: 0px;
     
     }
 
@@ -263,7 +276,7 @@ h2 { font-size: 16px !important; }
 # Top bar (plugin-like)
 st.markdown("""
     <div class='vale-nav'>
-        <div style='display:flex; gap:10px;'>
+        <div style='display:flex; gap:10px; margin:0;'>
             <div style='font-size:40px; font-weight:600;'>Vale</div>
             <div style='opacity:.65;'>Mastering Engineer</div>
         </div>
