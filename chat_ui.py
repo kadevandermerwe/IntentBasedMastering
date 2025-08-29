@@ -98,14 +98,6 @@ def render_chat(
         }}
         .avatar {{
           width:38px; height:38px; border-radius:50%;
-          border: 1px solid var(--border);
-          background:
-            radial-gradient(120% 120% at 20% 20%, rgba(94,162,255,0.18), transparent 55%),
-            linear-gradient(180deg, rgba(94,162,255,0.10), rgba(94,162,255,0.04));
-          display:flex; align-items:center; justify-content:center;
-          color: var(--accent); font-weight:700;
-          letter-spacing:.6px;
-          overflow:hidden;
         }}
         .hdr-title {{ margin:0; font-size:16px; font-weight:800; color: var(--ink); }}
         .hdr-sub {{ font-size:12px; color: var(--ink-dim); }}
