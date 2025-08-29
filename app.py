@@ -141,7 +141,7 @@ st.markdown("""
   top: 0;
   width:100%;
   z-index: 1000;
-  margin: 0 !important;
+  margin: -1rem !important;
   padding-bottom: 10px;
   padding-top:10px;
   padding-left:30px;
