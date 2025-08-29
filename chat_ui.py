@@ -88,9 +88,6 @@ def render_chat(
         body {{ margin:0; background:transparent; }}
 
         .panel {{
-          background: var(--panel);
-          border: 1px solid var(--border);
-          border-radius: 6px;
           padding: 10px;
         }}
         .hdr {{
@@ -105,10 +102,7 @@ def render_chat(
         .box {{
           height: {height-90}px;  /* scrollable area */
           overflow-y: auto;
-          border: 1px solid var(--border);
-          border-radius: 6px;
           padding: 8px;
-          background: #fff;
         }}
 
         .msg {{ border: 1px dashed var(--border); border-radius: 4px;
