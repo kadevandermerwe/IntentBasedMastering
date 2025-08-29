@@ -260,7 +260,7 @@ h2 { font-size: 16px !important; }
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #FFFFFF;
+  background: transparent;
   padding: 10px;
 }
 
