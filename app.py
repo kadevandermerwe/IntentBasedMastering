@@ -76,7 +76,7 @@ body {margin: auto;
 /* Avatar */
 .vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 
-.vale-nav {display: flex; width:100%; align-items: center; gap: 10px; text-align: centre; justify-content: space-between;}
+.vale-nav {display: flex; position: absolute; top:0px; align-items: center; gap: 10px; justify-content: space-between;}
 
 .vale-avatar {
   position: relative;
@@ -190,7 +190,7 @@ h2 { font-size: 16px !important; }
 # Top bar (plugin-like)
 st.markdown("""
     <div class='vale-nav'>
-        <div style='display:flex; position: absolute; top: 0px; gap:10px; width:100%;'>
+        <div style='display:flex; gap:10px;'>
             <div style='font-size:40px; font-weight:600; text-align: top;'>Vale</div>
             <div style='opacity:.65; text-align: centre;'>Mastering Engineer</div>
         </div>
