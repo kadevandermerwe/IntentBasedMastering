@@ -152,7 +152,7 @@ body {
 
     margin-top: -3rem;
     padding-top: -2rem;
-    max-width: 70%;
+    max-width: 100%;
     
     }
 
