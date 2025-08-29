@@ -164,6 +164,8 @@ body {
     padding-top: -2rem;
     max-width: 100%;
     overflow:visible;
+    padding-right:3rem;
+    padding-left:3rem;
     
     }
 
@@ -171,8 +173,7 @@ body {
 
     margin-top: -4rem;
     padding:0;
-    padding-right:3rem;
-    padding-left:3rem;
+    
     
     }
 
