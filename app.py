@@ -71,6 +71,8 @@ html, body, .block-container {
 /* Avatar */
 .vale-panel { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 
+.vale-nav {display: sticky; posiion absolute; top: 0px;}
+
 .vale-avatar {
   position: relative;
   width: 40px; height: 40px;
@@ -182,7 +184,7 @@ h2 { font-size: 16px !important; }
 
 # Top bar (plugin-like)
 st.markdown(
-    "<div class='vale-panel'>"
+    "<div class='vale-nav'>"
     "<div style='display:flex; gap:10px; align-items:center;'>"
     "<div style='font-size:40px; font-weight:600;'>Vale</div>"
     "<div style='opacity:.65'>Mastering Engineer</div>"
