@@ -143,8 +143,8 @@ st.markdown("""
   z-index: 1000;
   margin: 0 !important;
   padding-bottom: 10px;
-  padding-left:30%;
-  padding-right:30%;
+  padding-left:30px;
+  padding-right:30px;
   background: #Fff;                  /* your light panel */
   border-bottom: 1px solid rgba(0,0,0,.08);
   align-items:center;
