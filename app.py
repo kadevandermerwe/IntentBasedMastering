@@ -73,7 +73,7 @@ body {margin: auto;
   max-width: 90%;}
 
 /* Avatar */
-.vale-panel { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 
 .vale-nav {display: block; position absolute; top: 0px;}
 
