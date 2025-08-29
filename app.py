@@ -42,6 +42,42 @@ def _vale_altair_theme():
 alt.themes.register("vale_light_cli", _vale_altair_theme)
 alt.themes.enable("vale_light_cli")
 
+
+# --- remove Streamlit top chrome & padding, zero out h1 margins, pin our navbar ---
+st.markdown("""
+<style>
+/* hide Streamlit's built-in header */
+header[data-testid="stHeader"] { display: none !important; }
+
+/* remove the big default top padding on the main block container */
+main .block-container { padding-top: 0rem !important; }
+
+/* also remove any extra padding injected by the app view container */
+[data-testid="stAppViewContainer"] { padding-top: 0 !important; }
+
+/* hard reset page margins so nothing pushes content down */
+html, body { margin: 0 !important; padding: 0 !important; }
+
+/* Streamlit renders titles with big margins—nuke them globally */
+h1, .stMarkdown h1 { margin: 0 !important; }
+
+/* our navbar sits at the very top */
+#vale-nav {
+  position: sticky;     /* stays at top on scroll */
+  top: 0;
+  z-index: 1000;
+  margin: 0;
+  padding: 10px 16px;
+  background: #F7F9FC;                  /* your light panel */
+  border-bottom: 1px solid rgba(0,0,0,.08);
+}
+
+/* optional: make the first block after nav not add extra spacing */
+.v-space-0 { margin-top: 0 !important; padding-top: 0 !important; }
+</style>
+""", unsafe_allow_html=True)
+
+
 # Inject DAW-like CSS (matte, flat, minimal)
 st.markdown("""
 <style>
