@@ -97,7 +97,8 @@ def render_chat(
           display:flex; align-items:center; gap:12px; margin-bottom:10px;
         }}
         .avatar {{
-          align-items:center;
+          display:flex;
+          justify-content:space-between;
           width:50px;
         }}
         .hdr-title {{ margin:0; font-size:16px; font-weight:800; color: var(--ink); }}
@@ -123,7 +124,9 @@ def render_chat(
     <body>
       <div class="panel">
         <div class="hdr">
+          <div class="avatar"></div>
           <div class="avatar">{avatar_inner}</div>
+          <div class="avatar"></div>
         </div>
         <div id="vale-box" class="box">
           {rows_html}
