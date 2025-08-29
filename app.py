@@ -65,11 +65,12 @@ html, body, .block-container {
   background: var(--bg) !important;
   color: var(--ink) !important;
   font-family: var(--mono) !important;
-  margin: auto;
-  padding: 10px;
-  max-width: 90%;
+  
 }
 
+body {margin: auto;
+  padding: 10px;
+  max-width: 90%;}
 
 /* Avatar */
 .vale-panel { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
