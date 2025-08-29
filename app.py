@@ -1,6 +1,7 @@
 # app.py
 import os, json, re, shutil, uuid
 import pandas as pd
+import altair as alt
 import streamlit as st
 
 from utils import session_tmp_path
@@ -134,16 +135,61 @@ st.subheader("Analysis")
 st.json(analysis)
 
 # ---- Tonal balance line graph (8-band)
+# ---- Tonal balance (EQ-style, readable)
+import numpy as np
+import pandas as pd
+import altair as alt
+
+# Low → high, with Hz labels you can tweak
+BAND_ORDER  = ["sub","low_bass","high_bass","low_mids","mids","high_mids","highs","air"]
+BAND_LABELS = {
+    "sub":       "Sub (20–60 Hz)",
+    "low_bass":  "Low Bass (60–120 Hz)",
+    "high_bass": "High Bass (120–250 Hz)",
+    "low_mids":  "Low Mids (250–500 Hz)",
+    "mids":      "Mids (500 Hz–3.5 kHz)",
+    "high_mids": "High Mids (3.5–8 kHz)",
+    "highs":     "Highs (8–10 kHz)",
+    "air":       "Air (10–20 kHz)",
+}
+
 bands = analysis.get("bands_pct_8", {})
+st.subheader("Tonal balance (8 bands)")
+
 if bands:
-    # Ensure the order follows BAND_NAMES
-    ordered_vals = [bands.get(name, 0.0) for name in BAND_NAMES]
-    df = pd.DataFrame({"Band": BAND_NAMES, "Share (%)": ordered_vals})
-    st.subheader("Tonal balance (8 bands)")
-    st.line_chart(df.set_index("Band"))
+    # Pull band shares in fixed order
+    raw_vals = [max(1e-12, float(bands.get(b, 0.0))) for b in BAND_ORDER]
+
+    # Convert percent → proportion and normalize
+    total = sum(raw_vals) or 1.0
+    shares = [v / total for v in raw_vals]
+
+    # Center like an EQ: deviation from geometric mean (so 0 dB = average band energy)
+    gmean = float(np.exp(np.mean(np.log(shares))))
+    dev_db = [20.0 * np.log10(s / gmean) for s in shares]
+
+    df = pd.DataFrame({
+        "BandKey": BAND_ORDER,
+        "Band": [BAND_LABELS[b] for b in BAND_ORDER],
+        "Deviation (dB)": dev_db,
+        "Share (%)": [v * 100.0 for v in shares],
+    })
+
+    # Line chart with points, ±12 dB window feels like an EQ range
+    chart = alt.Chart(df).mark_line(point=True).encode(
+        x=alt.X("Band:N", sort=None, title=None),
+        y=alt.Y("Deviation (dB):Q",
+                scale=alt.Scale(domain=[-12, 12]),
+                title="Balance vs band average (dB)"),
+        tooltip=["Band", alt.Tooltip("Deviation (dB):Q", format=".2f"), alt.Tooltip("Share (%):Q", format=".1f")]
+    ).properties(height=240)
+
+    st.altair_chart(chart, use_container_width=True)
+    st.caption("Above 0 dB = comparatively boosted band; below 0 dB = comparatively reduced. "
+               "Computed from relative band energy (not absolute EQ).")
 else:
-    st.subheader("Tonal balance (8 bands)")
-    st.json(bands)
+    st.info("No 8-band analysis available.")
+
 
 # ---------------- Pre-clean corrective EQ (optional) ----------------
 master_input_path = in_path
