@@ -199,40 +199,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-def _esc(s: str) -> str:
-    return (s or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-
-def init_chat_state():
-    if "chat" not in st.session_state:
-        st.session_state["chat"] = [
-            {"role":"assistant","text":"Hey — drop a premaster and describe the vibe. I’ll adapt as we go."}
-        ]
-
-def add_chat(role: str, text: str):
-    st.session_state["chat"].append({"role": role, "text": text})
-
-
-VALE_OPENERS = [
-  "so…", "okay—", "alright,", "cool—", "nice—", "gotcha.", "heads up—",
-]
-VALE_HEDGES = [
-  "kinda", "a touch", "a hair", "slightly", "pretty", "fairly",
-]
-def _condense_numbers(txt:str)->str:
-    # turn things like "(~+2.3 dB)" into "+2 dB" for vibe
-    return re.sub(r"([+\-]?\d+(\.\d+)?)\s*dB", lambda m: f"{round(float(m.group(1)))} dB", txt)
-
-def vale_say(message: str) -> str:
-    opener = random.choice(VALE_OPENERS)
-    msg = message.strip()
-    # remove stiff lead-ins
-    msg = re.sub(r'^(analysis|result|note)[:\- ]+', '', msg, flags=re.I)
-    msg = _condense_numbers(msg)
-    return f"{opener} {msg[0].lower()}{msg[1:] if len(msg)>1 else ''}"
-
-
-
-
 # ---------------- Session helpers (chat + base dir) ----------------
 if "chat" not in st.session_state:
     st.session_state["chat"] = []  # list of dicts {role: 'user'|'assistant', 'text': str}
