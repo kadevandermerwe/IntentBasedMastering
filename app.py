@@ -150,7 +150,7 @@ st.markdown("""
 }
 
 .vale-shell {
-    width: 70%;
+    width: 100%;
     margin: 0 auto;
     margin-top:75px;
 }
