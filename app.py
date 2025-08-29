@@ -128,7 +128,7 @@ st.markdown("""
   top: 0;
   z-index: 1000;
   margin: 0 !important;
-  padding: -2rem;
+  padding-top: -2rem;
   background: #F7F9FC;                  /* your light panel */
   border-bottom: 1px solid rgba(0,0,0,.08);
 }
@@ -150,7 +150,7 @@ body {
 
 .block-container {
 
-    margin-top: 0;
+    margin-top: -10rem;
     padding: 0px;
     
     }
