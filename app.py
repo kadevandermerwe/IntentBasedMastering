@@ -150,6 +150,10 @@ st.markdown("""
   align-items:center;
 }
 
+.vale-shell {
+    width: 70%;
+    margin: auto;
+
 /* Page canvas */
 html, body, .block-container {
   background: var(--bg) !important;
