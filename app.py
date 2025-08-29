@@ -281,9 +281,7 @@ logo_base64 = img_to_base64(logo_path)
 
 st.markdown(f"""
     <div class='vale-nav'>
-        
         <img src="data:image/png;base64,{logo_base64}" width="100">
-        
     </div>
 """, unsafe_allow_html=True)
 
