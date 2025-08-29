@@ -319,23 +319,6 @@ if "base_dir" not in st.session_state:
     st.session_state["base_dir"] = session_tmp_path()
 base = st.session_state["base_dir"]
 
-def add_chat(role: str, text: str):
-    st.session_state["chat"].append({"role": role, "text": text})
-
-def render_chat():
-    st.markdown("<div class='vale-chat'>", unsafe_allow_html=True)
-    for msg in st.session_state["chat"]:
-        role = msg.get("role", "assistant")
-        cls = "assistant" if role != "user" else "user"
-        safe = (msg.get("text","")
-                .replace("&","&amp;").replace("<","&lt;").replace(">","&gt;"))  # basic sanitize
-        st.markdown(
-            f"<div class='vale-bubble {cls}' data-role='{role.upper()}'>"
-            f"<div style='white-space:pre-wrap'>{safe}</div></div>",
-            unsafe_allow_html=True
-        )
-    st.markdown("</div>", unsafe_allow_html=True)
-
 
 # ---------------- Utility ----------------
 def _safe_name(name: str) -> str:
@@ -432,7 +415,6 @@ with left:
 if upload_box is None and "in_path" not in st.session_state:
     with right:
         add_chat("assistant", "Upload a premaster to begin. I’ll analyze it and suggest musical moves.")
-        render_chat()
     st.stop()
 
 if upload_box is not None:
@@ -447,7 +429,7 @@ if upload_box is not None:
         except Exception as e:
             with right:
                 add_chat("assistant", "I couldn't write your file to disk.")
-                render_chat()
+               
                 st.exception(e)
             st.stop()
         st.session_state["in_path"] = in_path
@@ -475,7 +457,6 @@ with right:
                      f"- Tonal balance is bass-forward. I’ll show you the curve below.")
         except Exception as e:
             add_chat("assistant", "Analysis failed.")
-            render_chat()
             st.exception(e)
             st.stop()
 
@@ -503,7 +484,7 @@ if preclean:
         )
         if corr_eq8:
             add_chat("assistant", "I can pre-clean the premaster: subtle mud control / harshness relief. Rendering…")
-            render_chat()
+            
             corrected_path = os.path.join(os.path.dirname(in_path), "premaster_corrected.wav")
             try:
                 apply_corrective_eq(in_path, corrected_path, corr_eq8, corr_notches)
@@ -512,17 +493,17 @@ if preclean:
                 analysis = analyze_audio(corrected_path)
                 st.session_state["analysis"] = analysis
                 add_chat("assistant", "Pre-clean complete. I re-analyzed the corrected premaster.")
-                render_chat()
+          
                 # Optional preview
                 st.audio(corrected_path)
             except Exception as e:
                 add_chat("assistant", "Corrective render failed; continuing without pre-clean.")
-                render_chat()
+              
                 st.exception(e)
         else:
             if corr_msg:
                 add_chat("assistant", f"ℹ️ Skipping pre-clean: {corr_msg}")
-                render_chat()
+               
 
 # ---------------- Generate adaptive masters (3 variations) ----------------
 variant_notes = [
@@ -577,8 +558,7 @@ if gen_click:
                     add_chat("assistant", "No strong resonances detected — proceeding clean.")
             except Exception:
                 add_chat("assistant", "Resonance detection had an issue; continuing without notches.")
-        render_chat()
-
+     
         for i in range(3):
             st.markdown(f"<h2>Variation {i+1}</h2>", unsafe_allow_html=True)
             try:
@@ -586,7 +566,7 @@ if gen_click:
                 sectioned, status = get_sectioned_plans(i, seed, api_key)
                 if not sectioned:
                     add_chat("assistant", f"LLM plan unavailable for Variation {i+1}.")
-                    render_chat()
+                 
                     continue
 
                 with st.expander(f"AI Plan – Variation {i+1} ({status})"):
@@ -601,7 +581,7 @@ if gen_click:
                     notches=detected_notches
                 )
                 add_chat("assistant", f"🎧 Variation {i+1} is ready. I adjusted verse/drop separately to fit the vibe.")
-                render_chat()
+           
                 st.audio(out_path)
                 with open(out_path, "rb") as f:
                     st.download_button(
@@ -611,7 +591,7 @@ if gen_click:
                     )
             except Exception as e:
                 add_chat("assistant", f"Render failed for Variation {i+1}.")
-                render_chat()
+            
                 st.exception(e)
 
 # ---------------- Debug (collapsible) ----------------
