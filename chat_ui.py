@@ -35,7 +35,7 @@ def add_chat(role: str, text: str, state_key: str = "chat"):
     st.session_state.setdefault(state_key, [])
     st.session_state[state_key].append({"role": role, "text": text})
 
-def render_chat(container, state_key: str = "chat", height: int = 420):
+def render_chat(container, state_key: str = "chat", height: int = 420,  logo_path: str | None = None):
     """Single, container-scoped chat with autoscroll, rendered in one HTML iframe."""
     st.session_state.setdefault(state_key, [])
     if not st.session_state[state_key]:
