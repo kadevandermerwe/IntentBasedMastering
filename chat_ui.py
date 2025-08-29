@@ -90,6 +90,19 @@ def render_chat(
         .panel {{
           padding: 10px;
         }}
+        .element::-webkit-scrollbar {{
+          display: none; /* Hides scrollbar */
+        }}
+
+        /* Hide scrollbar for Firefox */
+        .element {{
+          scrollbar-width: none; /* Hides scrollbar */
+        }}
+
+        /* Optional: Prevent scrollbar space */
+        .element {{
+          -ms-overflow-style: none; /* IE and Edge */
+        }}
         .hdr {{
           display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
         }}
@@ -101,7 +114,7 @@ def render_chat(
 
         .box {{
           height: {height-90}px;  /* scrollable area */
-          overflow-y: scroll;
+          overflow-y: auto;
           padding: 8px;
         }}
 
