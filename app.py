@@ -139,7 +139,8 @@ st.markdown("""
   text-align:center;
   position: fixed;     /* stays at top on scroll */
   top: 0;
-  width:100vw;
+  left:0;
+  width:100%;
   z-index: 1000;
   margin-right:25vw;
   padding-bottom: 10px;
