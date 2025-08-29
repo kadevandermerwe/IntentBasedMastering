@@ -1,0 +1,6 @@
+[theme]
+base = "light"
+primaryColor = "#5EA2FF"
+backgroundColor = "#FAF9F6"          # page background (those black gutters)
+secondaryBackgroundColor = "#FFFFFF" # panel cards
+textColor = "#2F3640"
