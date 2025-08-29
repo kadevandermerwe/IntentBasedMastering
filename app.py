@@ -123,6 +123,7 @@ st.markdown("""
 
 .vale-nav {
   display:flex;
+  text-align: centre;
   justify-content:space-between;
   position: sticky;     /* stays at top on scroll */
   top: 0;
@@ -195,7 +196,7 @@ body {
 
 
 /* Headings */
-h1,h2,h3,h4,p,label,button { color: var(--ink); margin: 0 0 6px 0; letter-spacing:.2px; }
+h1,h2,h3,h4,p,label,button { color: var(--ink); margin: 0 0 6px 0; letter-spacing:.2px; text-align:centre;}
 h1 { font-size: 24px !important; }
 h2 { font-size: 16px !important; }
 
