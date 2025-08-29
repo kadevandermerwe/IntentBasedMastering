@@ -69,9 +69,13 @@ html, body, .block-container {
   
 }
 
-body {margin: auto;
-  padding: 10px;
-  max-width: 90%;}
+body {
+    margin: auto;
+    padding: 10px;
+    max-width: 90%;
+    margin-top: 0;
+    
+    }
 
 /* Avatar */
 .vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
