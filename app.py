@@ -151,7 +151,7 @@ body {
 .block-container {
 
     margin-top: -3rem;
-    padding: 0px, 16px;
+    padding: 0;
     
     }
 
