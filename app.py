@@ -426,19 +426,7 @@ with right:
         """, unsafe_allow_html=True)
     
     
-        # Scrollable box
-        st.markdown("<div id='vale-chatbox'>", unsafe_allow_html=True)
-        for m in st.session_state["chat"]:
-            role = m.get("role","assistant")
-            cls = "assistant" if role != "user" else "user"
-            st.markdown(
-                f"<div class='vale-msg {cls}'>"
-                f"<div class='vale-role'>{_esc(role.upper())}</div>"
-                f"<div>{_esc(m.get('text',''))}</div>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
+    
     
         # Auto-scroll to bottom (each rerun)
         components_html("""
