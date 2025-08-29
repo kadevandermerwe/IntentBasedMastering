@@ -309,6 +309,7 @@ def derive_section_plans_from_single(base_plan: dict):
     return verse, drop
 
 def _notch_chain(label_in: str, notches: list) -> tuple[str, str]:
+    from corrective import MAX_NOTCHES
     """
     Build up to MAX_NOTCHES parametric 'equalizer' notches in series.
     Returns (filter_snippet, last_label).
