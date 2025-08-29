@@ -23,7 +23,17 @@ from chat_ui import *
 from streamlit.components.v1 import html as st_html
 
 # ---------------- Page / Theme ----------------
-st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
+st.set_page_config(page_title="Vale Mastering Assistant", page_icon=logo_path, layout="wide")
+
+import base64
+
+def img_to_base64(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+logo_path = "imgs/2.png"
+logo_base64 = img_to_base64(logo_path)
 
 # --- Nuke Streamlit top spacing aggressively ---
 # --- Kill all top chrome & padding, old + new selectors ---
@@ -270,15 +280,7 @@ h2 { font-size: 16px !important; }
 </style>
 """, unsafe_allow_html=True)
 
-import base64
 
-def img_to_base64(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
-logo_path = "imgs/2.png"
-logo_base64 = img_to_base64(logo_path)
 
 st.markdown(f"""
     <div class='vale-nav'>
