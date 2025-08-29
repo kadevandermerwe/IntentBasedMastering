@@ -76,7 +76,7 @@ body {margin: auto;
 /* Avatar */
 .vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 
-.vale-nav {display: block; position absolute; top: 0px;}
+.vale-nav {display: flex; position absolute; top: 0px;}
 
 .vale-avatar {
   position: relative;
@@ -328,7 +328,6 @@ in_path = st.session_state["in_path"]
 
 # ===== Right: Vale Chat & Visuals =====
 with right:
-    st.markdown("<h2>Vale</h2>", unsafe_allow_html=True)
 
     container = st.container()         # anchor
     render_chat(container) 
