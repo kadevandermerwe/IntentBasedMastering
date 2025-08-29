@@ -447,13 +447,13 @@ with right:
             st.session_state["analysis"] = analyze_audio(in_path)
             a = st.session_state["analysis"]
             add_chat("assistant",
-                     f"✅ Analyzed your track.\n"
+                     f"Analyzed your track.\n"
                      f"- Loudness (integrated LUFS): **{a['lufs_integrated']:.2f}**\n"
                      f"- True peak (est.): **{a['true_peak_dbfs_est']:.2f} dBFS**\n"
                      f"- Tonal balance is bass-forward. I’ll show you the curve below.")
         except Exception as e:
-            add_chat("assistant", "❌ Analysis failed.")
-            render_chat()
+            add_chat("assistant", "Analysis failed.")
+            render_chatbox()
             st.exception(e)
             st.stop()
 
@@ -483,8 +483,8 @@ if preclean:
             model=st.sidebar.text_input("OpenAI model", value="gpt-4o-mini", key="model_hidden")  # stable key
         )
         if corr_eq8:
-            add_chat("assistant", "🧽 I can pre-clean the premaster: subtle mud control / harshness relief. Rendering…")
-            render_chat()
+            add_chat("assistant", "I can pre-clean the premaster: subtle mud control / harshness relief. Rendering…")
+            render_chatbox()
             corrected_path = os.path.join(os.path.dirname(in_path), "premaster_corrected.wav")
             try:
                 apply_corrective_eq(in_path, corrected_path, corr_eq8, corr_notches)
@@ -492,18 +492,18 @@ if preclean:
                 # Re-analyze the corrected file so the mastering plan “hears” it
                 analysis = analyze_audio(corrected_path)
                 st.session_state["analysis"] = analysis
-                add_chat("assistant", "✨ Pre-clean complete. I re-analyzed the corrected premaster.")
-                render_chat()
+                add_chat("assistant", "Pre-clean complete. I re-analyzed the corrected premaster.")
+                render_chatbox()
                 # Optional preview
                 st.audio(corrected_path)
             except Exception as e:
-                add_chat("assistant", "⚠️ Corrective render failed; continuing without pre-clean.")
-                render_chat()
+                add_chat("assistant", "Corrective render failed; continuing without pre-clean.")
+                render_chatbox()
                 st.exception(e)
         else:
             if corr_msg:
                 add_chat("assistant", f"ℹ️ Skipping pre-clean: {corr_msg}")
-                render_chat()
+                render_chatbox()
 
 # ---------------- Generate adaptive masters (3 variations) ----------------
 variant_notes = [
@@ -553,12 +553,12 @@ if gen_click:
             try:
                 detected_notches = detect_resonances_simple(master_input_path, max_notches=3, min_prom_db=3.0)
                 if detected_notches:
-                    add_chat("assistant", f"🔎 I found a few narrow resonances. I’ll notch them subtly: {detected_notches}")
+                    add_chat("assistant", f"I found a few narrow resonances. I’ll notch them subtly: {detected_notches}")
                 else:
-                    add_chat("assistant", "🔎 No strong resonances detected — proceeding clean.")
+                    add_chat("assistant", "No strong resonances detected — proceeding clean.")
             except Exception:
-                add_chat("assistant", "🔎 Resonance detection had an issue; continuing without notches.")
-        render_chat()
+                add_chat("assistant", "Resonance detection had an issue; continuing without notches.")
+        render_chatbox()
 
         for i in range(3):
             st.markdown(f"<h2>Variation {i+1}</h2>", unsafe_allow_html=True)
@@ -566,8 +566,8 @@ if gen_click:
                 seed = f"{uuid.uuid4().hex[:8]}-{i+1}"
                 sectioned, status = get_sectioned_plans(i, seed, api_key)
                 if not sectioned:
-                    add_chat("assistant", f"⚠️ LLM plan unavailable for Variation {i+1}.")
-                    render_chat()
+                    add_chat("assistant", f"LLM plan unavailable for Variation {i+1}.")
+                    render_chatbox()
                     continue
 
                 with st.expander(f"AI Plan – Variation {i+1} ({status})"):
@@ -582,7 +582,7 @@ if gen_click:
                     notches=detected_notches
                 )
                 add_chat("assistant", f"🎧 Variation {i+1} is ready. I adjusted verse/drop separately to fit the vibe.")
-                render_chat()
+                render_chatbox()
                 st.audio(out_path)
                 with open(out_path, "rb") as f:
                     st.download_button(
@@ -591,8 +591,8 @@ if gen_click:
                         file_name=f"master_ai_adaptive_v{i+1}.wav"
                     )
             except Exception as e:
-                add_chat("assistant", f"❌ Render failed for Variation {i+1}.")
-                render_chat()
+                add_chat("assistant", f"Render failed for Variation {i+1}.")
+                render_chatbox()
                 st.exception(e)
 
 # ---------------- Debug (collapsible) ----------------
