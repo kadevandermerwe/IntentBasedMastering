@@ -142,6 +142,8 @@ st.markdown("""
   width:100%;
   z-index: 1000;
   margin: 0 auto;
+  margin-left:(50%-50vw)
+  margin-right:(50%-50vw)
   padding-bottom: 10px;
   padding-top:10px;
   padding-left:30px;
