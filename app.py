@@ -62,7 +62,7 @@ html, body { margin: 0 !important; padding: 0 !important; }
 h1, .stMarkdown h1 { margin: 0 !important; }
 
 /* our navbar sits at the very top */
-#vale-nav {
+.vale-nav {
   position: sticky;     /* stays at top on scroll */
   top: 0;
   z-index: 1000;
@@ -114,8 +114,6 @@ body {
 
 /* Avatar */
 .vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
-
-.vale-nav {display: flex; margin-top:0px; padding:opx; position: absolute; top:0px; align-items: center; gap: 10px; justify-content: space-between;}
 
 .vale-avatar {
   position: relative;
