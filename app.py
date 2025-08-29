@@ -210,6 +210,36 @@ def init_chat_state():
 def add_chat(role: str, text: str):
     st.session_state["chat"].append({"role": role, "text": text})
 
+def render_chatbox():
+    # Bordered panel
+
+        st.markdown("""
+        <div class='vale-chat-panel'>
+          <div class='vale-header'>
+            <div class='vale-avatar'>V</div>
+            <div>
+              <h2 style="margin:0;">Vale · Console</h2>
+              <div class='vale-sub'>always on your team</div>
+            </div>
+          </div>
+        """, unsafe_allow_html=True)
+        
+        autoscroll_chatbox()
+        
+        # Input row (hard-cornered)
+        with st.container():
+            col = st.container()
+            st.markdown("<div class='vale-input-row'>", unsafe_allow_html=True)
+            user_txt = st.text_input("Message", key="vale_chat_input", label_visibility="collapsed", placeholder="Type to Vale…")
+            send = st.button("Send")
+            st.markdown("</div>", unsafe_allow_html=True)
+    
+        if send and user_txt.strip():
+            add_chat("user", user_txt.strip())
+            # Minimal echo; wire this to your app events if you want
+            add_chat("assistant", "Noted. I’ll factor that into the next plan/render.")
+            st.experimental_rerun()
+
 def autoscroll_chatbox():
     components_html("""
     <div></div>
@@ -411,35 +441,7 @@ in_path = st.session_state["in_path"]
 with right:
     st.markdown("<h2>Vale</h2>", unsafe_allow_html=True)
 
-    def render_chatbox():
-    # Bordered panel
-
-        st.markdown("""
-        <div class='vale-chat-panel'>
-          <div class='vale-header'>
-            <div class='vale-avatar'>V</div>
-            <div>
-              <h2 style="margin:0;">Vale · Console</h2>
-              <div class='vale-sub'>always on your team</div>
-            </div>
-          </div>
-        """, unsafe_allow_html=True)
-        
-        autoscroll_chatbox()
-        
-        # Input row (hard-cornered)
-        with st.container():
-            col = st.container()
-            st.markdown("<div class='vale-input-row'>", unsafe_allow_html=True)
-            user_txt = st.text_input("Message", key="vale_chat_input", label_visibility="collapsed", placeholder="Type to Vale…")
-            send = st.button("Send")
-            st.markdown("</div>", unsafe_allow_html=True)
-    
-        if send and user_txt.strip():
-            add_chat("user", user_txt.strip())
-            # Minimal echo; wire this to your app events if you want
-            add_chat("assistant", "Noted. I’ll factor that into the next plan/render.")
-            st.experimental_rerun()
+    render_chatbox()
 
     # ANALYZE
     if analyze_click or "analysis" not in st.session_state:
