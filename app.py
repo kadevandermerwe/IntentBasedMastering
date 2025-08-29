@@ -453,7 +453,7 @@ with right:
                      f"- Tonal balance is bass-forward. I’ll show you the curve below.")
         except Exception as e:
             add_chat("assistant", "Analysis failed.")
-            render_chatbox()
+            render_chat()
             st.exception(e)
             st.stop()
 
