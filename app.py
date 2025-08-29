@@ -66,7 +66,7 @@ html, body, .block-container {
   color: var(--ink) !important;
   font-family: var(--mono) !important;
   margin: auto;
-  padding: 0px;
+  padding: 10px;
   max-width: 90%;
 }
 
