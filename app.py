@@ -166,7 +166,7 @@ html, body, .block-container {
 body {
     margin-top:-2rem;
     padding-top: -2rem;
-    padding-right:3rem;
+    padding-right:30rem;
     padding-left:3rem;
     
     }
