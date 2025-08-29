@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import altair as alt
 import streamlit as st
+from streamlit.components.v1 import html as components_html
+
 
 from utils import session_tmp_path
 from dsp import (
@@ -45,150 +47,100 @@ st.markdown("""
 /* Hide Streamlit chrome */
 #MainMenu, header, footer { display:none !important; }
 
-/* ---------- Palette & tokens (terminal-light) ---------- */
+/* ---------- Palette (light terminal) ---------- */
 :root{
-  --bg: #F6F7F9;            /* paper light grey */
-  --panel: #FFFFFFEE;       /* white w/ slight translucency */
-  --panel-border: #DDE2EA;  /* cool light border */
-  --ink: #111317;           /* primary text */
-  --ink-dim: #4A5564;       /* secondary text */
-  --divider: #E6EAF1;       /* separators */
-  --accent: #5EA2FF;        /* muted light blue */
-  --accent-ghost: rgba(94,162,255,0.14);  /* translucent blue */
-  --accent-ghost-2: rgba(94,162,255,0.07);
+  --bg: #F7F8FA;
+  --panel: #FFFFFF;
+  --ink: #2F3640;          /* readable but not heavy */
+  --ink-dim: #6B7280;      /* secondary */
+  --border: #E6EAF1;       /* very light stroke */
+  --accent: #5EA2FF;       /* soft muted blue */
+  --accent-ghost: rgba(94,162,255,0.10);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Courier New", monospace;
-  --radius: 10px;
+  --radius: 4px;           /* hard corners */
 }
 
-/* ---------- Base canvas with subtle scanlines/noise ---------- */
+/* Page canvas */
 html, body, .block-container {
   background: var(--bg) !important;
   color: var(--ink) !important;
   font-family: var(--mono) !important;
 }
 
-/* faint scanlines */
-.block-container::before{
-  content:"";
-  position:fixed; inset:0;
-  background: repeating-linear-gradient(to bottom,
-    transparent 0px, transparent 3px, rgba(17,19,23,0.02) 3px, rgba(17,19,23,0.02) 4px);
-  pointer-events:none; z-index:0;
-}
+/* Headings */
+h1,h2,h3 { color: var(--ink); margin: 0 0 6px 0; letter-spacing:.2px; }
+h1 { font-size: 24px !important; }
+h2 { font-size: 16px !important; }
 
-/* subtle vignette */
-.block-container::after{
-  content:"";
-  position:fixed; inset:0;
-  background: radial-gradient(80% 60% at 50% 40%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.04) 100%);
-  pointer-events:none; z-index:0;
-}
-
-/* ---------- “Panels” -> modern terminal cards ---------- */
-.vale-panel {
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-  padding: 14px 14px 10px;
-  box-shadow: 0 1px 0 var(--divider), 0 12px 30px rgba(0,0,0,0.04);
-  position: relative;
-}
-
-.vale-divider { height:1px; background:var(--divider); margin:10px 0 8px; }
-
-/* ---------- Headings: terminal cursor accent ---------- */
-h1,h2,h3 { color: var(--ink); letter-spacing: .2px; }
-h1 { font-size: 26px !important; margin: 2px 0 6px; }
-h2 { font-size: 18px !important; margin: 8px 0 4px; color:#2A3542 !important; }
-h2::after{
-  content:"_";
-  margin-left:6px;
-  color: var(--accent);
-  opacity:.7;
-  animation: blink 1.2s steps(2, start) infinite;
-}
-@keyframes blink { to { visibility:hidden; }}
-
-/* ---------- Inputs / sliders ---------- */
-.stTextInput input,
-.stTextArea textarea {
+/* Inputs */
+.stTextInput input, .stTextArea textarea {
   background:#FBFCFE;
-  border:1px solid var(--panel-border);
+  border:1px solid var(--border);
   border-radius: var(--radius);
   color:var(--ink);
 }
-.stTextInput input:focus,
-.stTextArea textarea:focus {
+.stTextInput input:focus, .stTextArea textarea:focus {
   outline: 2px solid var(--accent-ghost);
   border-color: var(--accent);
   box-shadow:none;
 }
 
-.stSlider > div [role="slider"] {
-  border:1px solid var(--panel-border);
-  background:white;
-}
-.stSlider > div [data-baseweb="slider"] div[role="slider"]{
-  box-shadow: 0 0 0 4px var(--accent-ghost-2);
-}
-.stSlider > div [data-testid="stTickBarMin"],
-.stSlider > div [data-testid="stTickBarMax"]{ color:var(--ink-dim); }
-
-/* ---------- Buttons ---------- */
+/* Buttons */
 .stButton>button {
-  background: linear-gradient(180deg, #FFFFFF 0%, #F5F8FF 100%);
-  border:1px solid var(--panel-border);
-  border-radius: 8px;
-  color: var(--ink);
+  background: #FFFFFF;
+  border:1px solid var(--border);
+  border-radius: var(--radius);
   padding: 8px 12px;
-  transition: border-color .15s, box-shadow .15s;
+  color: var(--ink);
 }
-.stButton>button:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-ghost);
-}
+.stButton>button:hover { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-ghost); }
 
-/* ---------- Chat (terminal bubbles) ---------- */
-.vale-chat { display:flex; flex-direction:column; gap:12px; }
-.vale-bubble{
-  border:1px dashed var(--panel-border);
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: #FFFFFFCC;
-  backdrop-filter: blur(2px);
-  position: relative;
-}
-.vale-bubble.assistant{
-  background: linear-gradient(0deg, var(--accent-ghost), var(--accent-ghost));
-  border-color: rgba(94,162,255,0.4);
-}
-.vale-bubble.user{
-  align-self:flex-end;
-  background: #FFFFFFEE;
-}
-
-/* tiny label stripe */
-.vale-bubble.assistant::before,
-.vale-bubble.user::before{
-  content: attr(data-role);
-  position:absolute; top:-10px; left:12px;
-  font-size:10px; letter-spacing:.4px;
-  background:white; padding:0 6px; border-radius:6px;
-  border:1px solid var(--panel-border);
-  color: var(--ink-dim);
-}
-
-/* Audio element */
-audio { width:100%; }
-
-/* Expanders minimal */
-details, .streamlit-expanderHeader {
+/* ---------- Chat panel ---------- */
+.vale-chat-panel {
   background: var(--panel);
-  border:1px solid var(--panel-border) !important;
-  border-radius: var(--radius) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+#vale-chatbox {
+  height: 60vh;             /* scrollable area height */
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #FFFFFF;
+  padding: 10px;
+}
+
+.vale-msg {
+  border: 1px dashed var(--border);
+  border-radius: 3px;       /* even harder corners inside */
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: #FFFFFF;
+}
+
+.vale-msg.assistant {
+  border-color: rgba(94,162,255,0.4);
+  background: linear-gradient(0deg, rgba(94,162,255,0.07), rgba(94,162,255,0.07));
+}
+
+.vale-role {
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+  letter-spacing: .3px;
+}
+
+.vale-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin-top: 8px;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 # Top bar (plugin-like)
