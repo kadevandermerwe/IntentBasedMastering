@@ -460,7 +460,8 @@ in_path = st.session_state["in_path"]
 with right:
     st.markdown("<h2>Vale</h2>", unsafe_allow_html=True)
 
-    render_chatbox(container)
+    chat_area = st.container()          # anchor
+    render_chatbox(chat_area) 
 
     # ANALYZE
     if analyze_click or "analysis" not in st.session_state:
