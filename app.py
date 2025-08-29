@@ -136,11 +136,9 @@ st.json(analysis)
 
 # ---- Tonal balance line graph (8-band)
 # ---- Tonal balance (EQ-style, readable)
+# ---- Tonal balance (8 bands) with fallback compute + EQ-style plot
 import numpy as np
-import pandas as pd
-import altair as alt
 
-# Low → high, with Hz labels you can tweak
 BAND_ORDER  = ["sub","low_bass","high_bass","low_mids","mids","high_mids","highs","air"]
 BAND_LABELS = {
     "sub":       "Sub (20–60 Hz)",
@@ -153,18 +151,56 @@ BAND_LABELS = {
     "air":       "Air (10–20 kHz)",
 }
 
-bands = analysis.get("bands_pct_8", {})
+def _compute_bands8_percentages(path: str) -> dict:
+    """Fallback: compute 8-band energy % directly from the file (mono, STFT)."""
+    import librosa
+    y, sr = librosa.load(path, sr=None, mono=True)
+    S = np.abs(librosa.stft(y, n_fft=4096, hop_length=2048))**2  # power
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=4096)
+
+    ranges = [
+        ("sub",       20,    60),
+        ("low_bass",  60,   120),
+        ("high_bass",120,   250),
+        ("low_mids", 250,   500),
+        ("mids",     500,  3500),
+        ("high_mids",3500, 8000),
+        ("highs",    8000,10000),
+        ("air",     10000,20000),
+    ]
+    out = {}
+    for name, f_lo, f_hi in ranges:
+        band = S[(freqs >= f_lo) & (freqs < f_hi)]
+        out[name] = float(band.mean()) if band.size else 0.0
+    total = sum(out.values()) or 1.0
+    for k in out:
+        out[k] = 100.0 * out[k] / total
+    return out
+
 st.subheader("Tonal balance (8 bands)")
 
-if bands:
-    # Pull band shares in fixed order
-    raw_vals = [max(1e-12, float(bands.get(b, 0.0))) for b in BAND_ORDER]
+bands = analysis.get("bands_pct_8") or {}
+# If missing/empty or all ~0 → recompute from file
+if not bands or sum(float(bands.get(k, 0.0)) for k in BAND_ORDER) < 1e-6:
+    try:
+        # use your current input to analysis/mastering
+        current_input_path = locals().get("master_input_path", in_path)
+        bands = _compute_bands8_percentages(current_input_path)
+        # Also reflect it back into analysis so downstream sees it
+        analysis["bands_pct_8"] = bands
+    except Exception as e:
+        st.warning("Could not compute 8-band tonal balance; showing nothing.")
+        st.exception(e)
+        bands = {}
 
-    # Convert percent → proportion and normalize
+if bands:
+    # Show the raw numbers for sanity
+    st.json({k: round(float(bands.get(k, 0.0)), 2) for k in BAND_ORDER})
+
+    # Prepare EQ-like deviation curve (0 dB center)
+    raw_vals = [max(1e-12, float(bands.get(b, 0.0))) for b in BAND_ORDER]
     total = sum(raw_vals) or 1.0
     shares = [v / total for v in raw_vals]
-
-    # Center like an EQ: deviation from geometric mean (so 0 dB = average band energy)
     gmean = float(np.exp(np.mean(np.log(shares))))
     dev_db = [20.0 * np.log10(s / gmean) for s in shares]
 
@@ -175,20 +211,20 @@ if bands:
         "Share (%)": [v * 100.0 for v in shares],
     })
 
-    # Line chart with points, ±12 dB window feels like an EQ range
     chart = alt.Chart(df).mark_line(point=True).encode(
-        x=alt.X("Band:N", sort=None, title=None),
+        x=alt.X("Band:N", sort=None, title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("Deviation (dB):Q",
                 scale=alt.Scale(domain=[-12, 12]),
                 title="Balance vs band average (dB)"),
-        tooltip=["Band", alt.Tooltip("Deviation (dB):Q", format=".2f"), alt.Tooltip("Share (%):Q", format=".1f")]
+        tooltip=["Band",
+                 alt.Tooltip("Deviation (dB):Q", format=".2f"),
+                 alt.Tooltip("Share (%):Q", format=".1f")]
     ).properties(height=240)
-
     st.altair_chart(chart, use_container_width=True)
-    st.caption("Above 0 dB = comparatively boosted band; below 0 dB = comparatively reduced. "
-               "Computed from relative band energy (not absolute EQ).")
+    st.caption("Above 0 dB = comparatively boosted; below 0 dB = comparatively reduced. "
+               "This visualizes balance (like an EQ), not absolute EQ settings.")
 else:
-    st.info("No 8-band analysis available.")
+    st.info("No 8-band data available.")
 
 
 # ---------------- Pre-clean corrective EQ (optional) ----------------
