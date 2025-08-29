@@ -137,7 +137,7 @@ st.markdown("""
   display:flex;
   justify-content:center;
   text-align:centre;
-  position: sticky;     /* stays at top on scroll */
+  position: fixed;     /* stays at top on scroll */
   top: 0;
   width:100%;
   z-index: 1000;
@@ -154,6 +154,7 @@ st.markdown("""
 .vale-shell {
     width: 70%;
     margin: 0 auto;
+    margin-top:75px;
 }
 
 /* Page canvas */
