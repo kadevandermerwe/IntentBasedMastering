@@ -5,6 +5,7 @@ import pandas as pd
 import altair as alt
 import streamlit as st
 from streamlit.components.v1 import html as components_html
+import random, re
 
 
 from utils import session_tmp_path
@@ -33,8 +34,18 @@ def add_chat(role: str, text: str):
 
 def render_chatbox():
     # Bordered panel
-    st.markdown("<div class='vale-chat-panel'>", unsafe_allow_html=True)
-    st.markdown("<h2>Vale · Console</h2>", unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class='vale-chat-panel'>
+      <div class='vale-header'>
+        <div class='vale-avatar'>V</div>
+        <div>
+          <h2 style="margin:0;">Vale · Console</h2>
+          <div class='vale-sub'>always on your team</div>
+        </div>
+      </div>
+    """, unsafe_allow_html=True)
+
 
     # Scrollable box
     st.markdown("<div id='vale-chatbox'>", unsafe_allow_html=True)
@@ -57,7 +68,9 @@ def render_chatbox():
         if (box) { box.scrollTop = box.scrollHeight; }
         </script>
     """, height=0, width=0)
-
+    
+    autoscroll_chatbox()
+    
     # Input row (hard-cornered)
     with st.container():
         col = st.container()
@@ -71,6 +84,58 @@ def render_chatbox():
         # Minimal echo; wire this to your app events if you want
         add_chat("assistant", "Noted. I’ll factor that into the next plan/render.")
         st.experimental_rerun()
+       
+
+
+VALE_OPENERS = [
+  "so…", "okay—", "alright,", "cool—", "nice—", "gotcha.", "heads up—",
+]
+VALE_HEDGES = [
+  "kinda", "a touch", "a hair", "slightly", "pretty", "fairly",
+]
+def _condense_numbers(txt:str)->str:
+    # turn things like "(~+2.3 dB)" into "+2 dB" for vibe
+    return re.sub(r"([+\-]?\d+(\.\d+)?)\s*dB", lambda m: f"{round(float(m.group(1)))} dB", txt)
+
+def vale_say(message: str) -> str:
+    opener = random.choice(VALE_OPENERS)
+    msg = message.strip()
+    # remove stiff lead-ins
+    msg = re.sub(r'^(analysis|result|note)[:\- ]+', '', msg, flags=re.I)
+    msg = _condense_numbers(msg)
+    return f"{opener} {msg[0].lower()}{msg[1:] if len(msg)>1 else ''}"
+
+# Use:
+# add_chat("assistant", vale_say("Mids are +2.3 dB vs avg; kick energy is heavy ~120–200 Hz, true peak is +0.3 dB."))
+
+
+def autoscroll_chatbox():
+    components_html("""
+    <div></div>
+    <script>
+    (function(){
+      function scrollBox(){
+        try{
+          const box = window.parent.document.querySelector('#vale-chatbox');
+          if (box){ box.scrollTop = box.scrollHeight; }
+        }catch(e){}
+      }
+      // initial & a couple of retries
+      scrollBox();
+      setTimeout(scrollBox, 60);
+      setTimeout(scrollBox, 200);
+      // keep pinned with mutations
+      try{
+        const box = window.parent.document.querySelector('#vale-chatbox');
+        if (box){
+          const obs = new MutationObserver(() => scrollBox());
+          obs.observe(box, {childList:true, subtree:true});
+        }
+      }catch(e){}
+    })();
+    </script>
+    """, height=0)
+
 
 
 # ---------------- Page / Theme ----------------
@@ -120,6 +185,43 @@ html, body, .block-container {
   color: var(--ink) !important;
   font-family: var(--mono) !important;
 }
+
+<style>
+/* Avatar */
+.vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+
+.vale-avatar {
+  position: relative;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(120% 120% at 20% 20%, rgba(94,162,255,0.18), transparent 55%),
+    linear-gradient(180deg, rgba(94,162,255,0.10), rgba(94,162,255,0.04));
+  display: grid; place-items: center;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: .6px;
+}
+
+/* subtle pulse ring (optional) */
+.vale-avatar::after{
+  content:"";
+  position:absolute; inset:-3px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 rgba(94,162,255,0.35);
+  animation: valePulse 2.4s ease-out infinite;
+}
+@keyframes valePulse{
+  0%   { box-shadow: 0 0 0 0 rgba(94,162,255,0.25); }
+  60%  { box-shadow: 0 0 0 7px rgba(94,162,255,0.00); }
+  100% { box-shadow: 0 0 0 0 rgba(94,162,255,0.00); }
+}
+
+/* small subtitle under heading */
+.vale-sub { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+</style>
 
 /* Headings */
 h1,h2,h3 { color: var(--ink); margin: 0 0 6px 0; letter-spacing:.2px; }
