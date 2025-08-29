@@ -1,11 +1,11 @@
-# app.py — Vale Mastering Assistant (DAW-style UI + Vale Chat)
-import os, json, re, shutil, uuid
+# app.py — Vale Mastering Assistant (Console-first UI)
+import os, json, re, shutil, uuid, base64
 import numpy as np
 import pandas as pd
 import altair as alt
 import streamlit as st
-from streamlit.components.v1 import html as components_html
-import random, re
+import io, base64
+import matplotlib.pyplot as plt
 
 
 from utils import session_tmp_path
@@ -14,305 +14,75 @@ from dsp import (
     render_adaptive_from_plans,
     derive_section_plans_from_single,
     detect_resonances_simple,
-    BAND_NAMES,  # ensure this matches your dsp.BAND_NAMES
 )
 from ai import llm_plan
 from diagnostics import validate_plan
 from corrective import llm_corrective_cleanup, apply_corrective_eq
-from chat_ui import *
-from streamlit.components.v1 import html as st_html
+from chat_ui import render_chat, add_chat
 
-import base64
-
-def img_to_base64(path):
+# ---------- assets ----------
+def img_to_base64(path: str) -> str:
     with open(path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
+        return base64.b64encode(f.read()).decode()
 
-logo_path = "imgs/2.png"
-avatar_path = "imgs/shadow.png"
-logo_base64 = img_to_base64(logo_path)
-avatar_base64 = img_to_base64(avatar_path)
+LOGO_PATH   = "imgs/2.png"
+AVATAR_PATH = "imgs/shadow.png"
+LOGO_B64    = img_to_base64(LOGO_PATH)
+AVATAR_B64  = img_to_base64(AVATAR_PATH)
 
-# ---------------- Page / Theme ----------------
-st.set_page_config(page_title="Vale Mastering Assistant", page_icon=logo_path, layout="wide")
+# ---------- page ----------
+st.set_page_config(page_title="Vale Mastering Assistant", page_icon=LOGO_PATH, layout="wide")
 
-
-
-# --- Nuke Streamlit top spacing aggressively ---
-# --- Kill all top chrome & padding, old + new selectors ---
+# Kill Streamlit chrome/padding
 st.markdown("""
 <style>
-/* Hide Streamlit header/toolbar */
-header[data-testid="stHeader"], div[data-testid="stToolbar"] { display:none !important; }
+header[data-testid="stHeader"], div[data-testid="stToolbar"], #MainMenu, footer { display:none !important; }
+[data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"]>.main, main .block-container { padding-top:0 !important; }
+.stApp { margin-top:0 !important; }
+html, body { margin:0 !important; padding:0 !important; background:#FAF9F6; }
 
-/* Remove top padding on the app view (old & new structure) */
-[data-testid="stAppViewContainer"] { padding-top: 0 !important; }
-[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; } /* newer */
-main .block-container, [data-testid="block-container"] { padding-top: 0 !important; }
+/* Nav */
+.vale-nav { position:fixed; top:0; left:0; right:0; z-index:999; display:flex; justify-content:center; background:#fff;
+  border-bottom:1px solid rgba(0,0,0,.08); padding:10px 0; }
+.vale-shell { width:70vw; margin:84px auto 24px; }
 
-/* Prevent first-child margin collapse (common invisible culprit) */
-main .block-container > div:first-child,
-[data-testid="block-container"] > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
-main .block-container h1:first-child,
-main .block-container h2:first-child,
-main .block-container p:first-child { margin-top: 0 !important; }
-
-/* Also zero the global app wrapper */
-.stApp { margin-top: 0 !important; }
-
-/* Absolutely no default margins/padding from the document */
-html, body { margin:0 !important; padding:0 !important; }
-</style>
-""", unsafe_allow_html=True)
-
-# Re-apply after reruns (themes sometimes re-inject padding)
-from streamlit.components.v1 import html as st_html
-st_html("""
-<script>
-(function(){
-  const fix = () => {
-    const doc = window.parent?.document || document;
-    const sel = (s) => doc.querySelector(s);
-    const hide = sel('header[data-testid="stHeader"]');
-    if (hide) hide.style.display = 'none';
-    const app = sel('[data-testid="stAppViewContainer"]');
-    if (app) { app.style.paddingTop = '0px'; }
-    const main = sel('[data-testid="stAppViewContainer"] > .main');
-    if (main) { main.style.paddingTop = '0px'; }
-    const bc1 = sel('main .block-container');
-    const bc2 = sel('[data-testid="block-container"]');
-    const bc = bc1 || bc2;
-    if (bc) {
-      bc.style.paddingTop = '0px';
-      const first = bc.querySelector(':scope > div:first-child');
-      if (first) { first.style.marginTop = '0px'; first.style.paddingTop = '0px'; }
-    }
-    const stApp = sel('.stApp');
-    if (stApp) stApp.style.marginTop = '0px';
-  };
-  fix();
-  new MutationObserver(fix).observe(document.body, { childList:true, subtree:true });
-})();
-</script>
-""", height=0)
-
-# after: import altair as alt
-def _vale_altair_theme():
-    return {
-        "config": {
-            "background": "#fff",
-            "axis": {
-                "labelColor": "#2A3542",
-                "titleColor": "#2A3542",
-                "gridColor": "#E6EAF1",
-                "domainColor": "#DDE2EA",
-            },
-            "view": {"stroke": "transparent"},
-            "line": {"strokeWidth": 2},
-            "point": {"filled": True, "size": 60},
-        }
-    }
-alt.themes.register("vale_light_cli", _vale_altair_theme)
-alt.themes.enable("vale_light_cli")
-
-# Inject DAW-like CSS (matte, flat, minimal)
-st.markdown("""
-<style>
-/* Hide Streamlit chrome */
-#MainMenu, header, footer { display:none !important; }
-
-/* ---------- Palette (light terminal) ---------- */
+/* Typography + controls */
 :root{
-  --bg: #FAF9F6;
-  --panel: #FFFFFF;
-  --ink: #2F3640;          /* readable but not heavy */
-  --ink-dim: #6B7280;      /* secondary */
-  --border: #E6EAF1;       /* very light stroke */
-  --accent: #5EA2FF;       /* soft muted blue */
-  --accent-ghost: rgba(94,162,255,0.10);
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Courier New", monospace;
-  --radius: 4px;           /* hard corners */
+  --panel:#FFFFFF; --ink:#2F3640; --ink-dim:#6B7280; --border:#E6EAF1; --accent:#5EA2FF; --accent-ghost:rgba(94,162,255,.10);
+  --mono:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Courier New", monospace; --radius:4px;
 }
+html, body { color:var(--ink); font-family:var(--mono); }
+.stTextInput input, .stTextArea textarea { background:#FBFCFE; border:1px solid var(--border); border-radius:var(--radius); }
+.stTextInput input:focus, .stTextArea textarea:focus { outline:2px solid var(--accent-ghost); border-color:var(--accent); box-shadow:none; }
+.stButton>button { background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; }
+.stButton>button:hover { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-ghost); }
 
-.vale-nav {
-  display:flex;
-  justify-content:center;
-  text-align:center;
-  position: fixed;     /* stays at top on scroll */
-  top: 0;
-  left:0;
-  width:100%;
-  z-index: 1000;
-  margin-right:25vw;
-  padding-bottom: 10px;
-  padding-top:10px;
-  background: #Fff;                  /* your light panel */
-  border-bottom: 1px solid rgba(0,0,0,.08);
-  align-items:center;
-}
+/* Cards */
+.vale-card { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:12px; }
 
-.vale-shell {
-    width: 100%;
-    margin: 0 auto;
-    margin-top:75px;
-}
-
-/* Page canvas */
-html, body, .block-container {
-  background: var(--bg) !important;
-  color: var(--ink) !important;
-  font-family: var(--mono) !important;
-  
-}
-
-body {
-    margin-top:-2rem;
-    padding-top: -2rem;
-    
-    }
-main {
-    background: var(--bg) !important;
-}
-
-.block-container {
-
-    margin-top: -4rem;
-    margin:auto;
-    padding:0;
-    width:70vw;
-    
-    
-    }
-
-/* Avatar */
-.vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
-
-.vale-avatar {
-  position: relative;
-  width: 40px; height: 40px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background:
-    radial-gradient(120% 120% at 20% 20%, rgba(94,162,255,0.18), transparent 55%),
-    linear-gradient(180deg, rgba(94,162,255,0.10), rgba(94,162,255,0.04));
-  display: grid; place-items: center;
-  font-family: var(--mono);
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: .6px;
-}
-
-/* subtle pulse ring (optional) */
-.vale-avatar::after{
-  content:"";
-  position:absolute; inset:-3px;
-  border-radius: inherit;
-  box-shadow: 0 0 0 0 rgba(94,162,255,0.35);
-  animation: valePulse 2.4s ease-out infinite;
-}
-@keyframes valePulse{
-  0%   { box-shadow: 0 0 0 0 rgba(94,162,255,0.25); }
-  60%  { box-shadow: 0 0 0 7px rgba(94,162,255,0.00); }
-  100% { box-shadow: 0 0 0 0 rgba(94,162,255,0.00); }
-}
-
-/* small subtitle under heading */
-.vale-sub { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
-
-
-/* Headings */
-h1,h2,h3,h4,p,label,button { color: var(--ink); margin: 0 0 6px 0; letter-spacing:.2px; text-align:centre;}
-h1 { font-size: 24px !important; }
-h2 { font-size: 16px !important; }
-
-/* Inputs */
-.stTextInput input, .stTextArea textarea {
-  background:#FBFCFE;
-  border:1px solid var(--border);
-  border-radius: var(--radius);
-  color:var(--ink);
-}
-.stTextInput input:focus, .stTextArea textarea:focus {
-  outline: 2px solid var(--accent-ghost);
-  border-color: var(--accent);
-  box-shadow:none;
-}
-
-/* Buttons */
-.stButton>button {
-  background: #FFFFFF;
-  border:1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 12px;
-  color: var(--ink);
-}
-.stButton>button:hover { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-ghost); }
-
-/* ---------- Chat panel ---------- */
-.vale-chat-panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px;
-}
-
-#vale-chatbox {
-  height: 60vh;             /* scrollable area height */
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: transparent;
-  padding: 10px;
-}
-
-.vale-msg {
-  border: 1px dashed var(--border);
-  border-radius: 3px;       /* even harder corners inside */
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  background: #FFFFFF;
-}
-
-.vale-msg.assistant {
-  border-color: rgba(94,162,255,0.4);
-  background: linear-gradient(0deg, rgba(94,162,255,0.07), rgba(94,162,255,0.07));
-}
-
-.vale-role {
-  font-size: 11px;
-  color: var(--ink-dim);
-  margin-bottom: 4px;
-  letter-spacing: .3px;
-}
-
-.vale-input-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px;
-  margin-top: 8px;
-}
+/* Action row */
+.vale-actions { display:flex; gap:8px; align-items:center; }
 </style>
 """, unsafe_allow_html=True)
 
-
-
+# Navbar (full width)
 st.markdown(f"""
-    <div class='vale-nav'>
-        <img src="data:image/png;base64,{logo_base64}" width="75">
-    </div>
+<div class="vale-nav">
+  <img src="data:image/png;base64,{LOGO_B64}" alt="Vale" height="54">
+</div>
 """, unsafe_allow_html=True)
 
-# ---------------- Session helpers (chat + base dir) ----------------
-if "chat" not in st.session_state:
-    st.session_state["chat"] = []  # list of dicts {role: 'user'|'assistant', 'text': str}
+# Central shell (70% width)
+st.markdown('<div class="vale-shell">', unsafe_allow_html=True)
 
-if "base_dir" not in st.session_state:
-    st.session_state["base_dir"] = session_tmp_path()
-base = st.session_state["base_dir"]
+# ---------- session state ----------
+st.session_state.setdefault("chat", [])
+st.session_state.setdefault("base_dir", session_tmp_path())
 
+base_dir = st.session_state["base_dir"]
+llm_model = st.session_state.get("llm_model", "gpt-4o-mini")
 
-# ---------------- Utility ----------------
+# ---------- helper ----------
 def _safe_name(name: str) -> str:
     base_name = os.path.basename(name or "upload")
     return re.sub(r"[^A-Za-z0-9._-]+", "_", base_name)
@@ -330,7 +100,6 @@ BAND_LABELS = {
 }
 
 def compute_deviation_db_from_bands(bands_pct_8: dict) -> pd.DataFrame:
-    """Turn 8-band % into EQ-like deviation curve centered at 0 dB."""
     vals = [max(1e-12, float(bands_pct_8.get(b, 0.0))) for b in BAND_ORDER]
     total = sum(vals) or 1.0
     shares = [v / total for v in vals]
@@ -344,163 +113,145 @@ def compute_deviation_db_from_bands(bands_pct_8: dict) -> pd.DataFrame:
     })
 
 def tonal_chart(df: pd.DataFrame):
+    alt.themes.register("vale_light_cli", lambda: {
+        "config": {
+            "background": "#ffffff",
+            "axis": {"labelColor": "#2A3542", "titleColor": "#2A3542", "gridColor": "#E6EAF1", "domainColor": "#DDE2EA"},
+            "view": {"stroke": "transparent"}, "line": {"strokeWidth": 2}, "point": {"filled": True, "size": 60},
+        }
+    })
+    alt.themes.enable("vale_light_cli")
     return alt.Chart(df).mark_line(point=True).encode(
         x=alt.X("Band:N", sort=None, title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("Deviation (dB):Q", scale=alt.Scale(domain=[-12, 12]),
                 title="Balance vs band average (dB)"),
-        tooltip=["Band",
-                 alt.Tooltip("Deviation (dB):Q", format=".2f"),
-                 alt.Tooltip("Share (%):Q", format=".1f")],
+        tooltip=["Band", alt.Tooltip("Deviation (dB):Q", format=".2f"), alt.Tooltip("Share (%):Q", format=".1f")],
     ).properties(height=240)
 
-st.markdown('<div class="vale-shell">', unsafe_allow_html=True)
-# ---------------- LAYOUT: two panes ----------------
-left, right = st.columns([1.1, 0.9], gap="medium")
+# ---------- Vale Console (chat first) ----------
+chat_box = st.container()
+render_chat(chat_box, state_key="chat", height=420, avatar_img_b64=AVATAR_B64)
 
-# ===== Left: Controls panel =====
-with left:
-    st.markdown("<h2>Session</h2>", unsafe_allow_html=True)
+# Action row under chat
+act_col1, act_col2, spacer = st.columns([0.22, 0.30, 0.48])
+with act_col1:
+    analyze_click = st.button("Analyze")
+with act_col2:
+    gen_click = st.button("Render 3 Variations")
+
+# ---------- Session Tools (drawer) ----------
+with st.expander("Session Tools", expanded=True):
+    st.markdown('<div class="vale-card">', unsafe_allow_html=True)
     upload_box = st.file_uploader(
         "Upload premaster (WAV/AIFF/FLAC — no limiter, ~−6 dBFS headroom)",
-        type=["wav", "aiff", "aif", "flac"],
-        label_visibility="collapsed",
+        type=["wav", "aiff", "aif", "flac"]
     )
-    st.markdown("<div class='vale-divider'></div>", unsafe_allow_html=True)
 
-    st.markdown("<h2>Reference</h2>", unsafe_allow_html=True)
-    reference_txt = st.text_input("", placeholder="Reference (e.g. Return of the Jaded – Soma)")
+    # Reference + intent
+    reference_txt = st.text_input("Reference (optional)", placeholder="Return of the Jaded – Soma")
     reference_weight = st.slider("Reference weight", 0.0, 1.0, 0.9 if reference_txt else 0.0, 0.1)
-    st.markdown("<div class='vale-divider'></div>", unsafe_allow_html=True)
 
-    st.markdown("<h2>Intent</h2>", unsafe_allow_html=True)
-    prompt_txt = st.text_area("", placeholder="Describe the vibe (e.g., dark, preserve dynamics, tape weight).")
     c1, c2 = st.columns(2)
     with c1:
+        prompt_txt = st.text_area("Intent (vibe/goals)", placeholder="dark, preserve dynamics, tape weight; like Soma")
         tone = st.slider("Tone: Dark ↔ Bright", -1.0, 1.0, 0.0, 0.1)
         dynamics = st.slider("Dynamics: Preserve ↔ Loud", -1.0, 1.0, 0.0, 0.1)
     with c2:
         stereo = st.slider("Stereo: Narrow ↔ Wide", -1.0, 1.0, 0.0, 0.1)
         character = st.slider("Character: Clean ↔ Tape", -1.0, 1.0, 0.5, 0.1)
 
-    intent = {
-        "tone": float(tone), "dynamics": float(dynamics),
-        "stereo": float(stereo), "character": float(character)
-    }
+    intent = {"tone": float(tone), "dynamics": float(dynamics), "stereo": float(stereo), "character": float(character)}
 
-    st.markdown("<div class='vale-divider'></div>", unsafe_allow_html=True)
-    st.markdown("<h2>Options</h2>", unsafe_allow_html=True)
+    # Options
     preclean = st.checkbox("Pre-clean (auto corrective EQ) before mastering", value=True)
     post_notch = st.checkbox("Add up to 3 safety notches before render", value=True)
 
-    st.markdown("<div class='vale-divider'></div>", unsafe_allow_html=True)
-    cA, cB, cC = st.columns(3)
-    with cA:
-        analyze_click = st.button("Analyze", use_container_width=True)
-    with cB:
-        gen_click = st.button("Generate 3 Adaptive Masters", use_container_width=True)
-    with cC:
-        if st.button("Reset", use_container_width=True):
-            for k in ("uploaded_name", "analysis", "in_path", "base_dir", "chat"):
-                st.session_state.pop(k, None)
-            st.experimental_rerun()
+    # Small model input if you want to tweak
+    llm_model = st.text_input("OpenAI model", value=llm_model, help="e.g. gpt-4o-mini")
+    st.session_state["llm_model"] = llm_model
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ===== Handle upload/write =====
+# ---------- file persistence ----------
 if upload_box is None and "in_path" not in st.session_state:
-    with right:
-        add_chat("assistant", "Upload a premaster to begin. I’ll analyze it and suggest musical moves.")
+    add_chat("assistant", "upload a premaster to begin—i’ll analyze it and suggest musical moves.")
+    st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 if upload_box is not None:
     if ("uploaded_name" not in st.session_state) or (upload_box.name != st.session_state["uploaded_name"]):
         st.session_state["uploaded_name"] = _safe_name(upload_box.name)
-        in_path = os.path.join(base, st.session_state["uploaded_name"])
+        in_path = os.path.join(base_dir, st.session_state["uploaded_name"])
         try:
             upload_box.seek(0)
             with open(in_path, "wb") as f:
-                shutil.copyfileobj(upload_box, f, length=1 * 1024 * 1024)  # 1MB chunks
+                shutil.copyfileobj(upload_box, f, length=1 * 1024 * 1024)
             upload_box.seek(0)
         except Exception as e:
-            with right:
-                add_chat("assistant", "I couldn't write your file to disk.")
-               
-                st.exception(e)
+            add_chat("assistant", "i couldn’t write your file to disk.")
+            st.exception(e)
+            st.markdown('</div>', unsafe_allow_html=True)
             st.stop()
         st.session_state["in_path"] = in_path
         st.session_state.pop("analysis", None)
 
-# Always use the path from session hereafter
 in_path = st.session_state["in_path"]
 
-# ===== Right: Vale Chat & Visuals =====
-with right:
+# ---------- ANALYZE ----------
+if analyze_click or "analysis" not in st.session_state:
+    try:
+        st.session_state["analysis"] = analyze_audio(in_path)
+        a = st.session_state["analysis"]
+        add_chat("assistant",
+                 f"analyzed your track—lufs: **{a['lufs_integrated']:.2f}**, "
+                 f"true peak (est.): **{a['true_peak_dbfs_est']:.2f} dBFS**. "
+                 f"the balance leans bass-forward; here’s the curve below.")
+    except Exception as e:
+        add_chat("assistant", "analysis had a wobble—try again in a sec?")
+        st.exception(e)
 
-    container = st.container()         # anchor
-    render_chat(container,
-    state_key="chat",
-    height=420,
-    avatar_img_b64=avatar_base64 ) 
+# Tonal visual (under chat)
+# Tonal visual (now injected into the chat as an attachment)
+if "analysis" in st.session_state:
+    bands = st.session_state["analysis"].get("bands_pct_8") or {}
+    if bands and sum(float(bands.get(k, 0.0)) for k in ["sub","low_bass","high_bass","low_mids","mids","high_mids","highs","air"]) > 1e-9:
+        data_url = tonal_png_data_url(bands)
+        if data_url:
+            from chat_ui import add_chat
+            add_chat(
+                "assistant",
+                "here’s the tonal snapshot—think of it like an EQ curve: above 0 dB is comparatively boosted, below is reduced.",
+                attachments=[{"type":"img","src":data_url,"alt":"Tonal balance (8-band)"}]
+            )
 
-    # ANALYZE
-    if analyze_click or "analysis" not in st.session_state:
-        try:
-            st.session_state["analysis"] = analyze_audio(in_path)
-            a = st.session_state["analysis"]
-            add_chat("assistant",
-                     f"Analyzed your track.\n"
-                     f"- Loudness (integrated LUFS): **{a['lufs_integrated']:.2f}**\n"
-                     f"- True peak (est.): **{a['true_peak_dbfs_est']:.2f} dBFS**\n"
-                     f"- Tonal balance is bass-forward. I’ll show you the curve below.")
-        except Exception as e:
-            add_chat("assistant", "Analysis failed.")
-            st.exception(e)
-            st.stop()
 
-    # Tonal balance visualizer
-    analysis = st.session_state["analysis"]
-    bands = analysis.get("bands_pct_8") or {}
-    if bands and sum(float(bands.get(k, 0.0)) for k in BAND_ORDER) > 1e-9:
-        df = compute_deviation_db_from_bands(bands)
-        st.altair_chart(tonal_chart(df), use_container_width=True)
-        st.caption("Above 0 dB = comparatively boosted; below 0 dB = comparatively reduced. "
-                   "This visualizes balance (like an EQ curve), not absolute EQ settings.")
-    else:
-        st.caption("No 8-band data available for the visualizer.")
-
-# ---------------- Pre-clean corrective EQ (optional) ----------------
+# ---------- Pre-clean corrective EQ (optional) ----------
 master_input_path = in_path
-if preclean:
-    with right:
-        api_key = st.secrets.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+if preclean and "analysis" in st.session_state:
+    api_key = st.secrets.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+    try:
         corr_eq8, corr_notches, corr_msg = llm_corrective_cleanup(
-            api_key=api_key,
-            analysis=analysis,
-            user_prompt=prompt_txt,
-            model=st.sidebar.text_input("OpenAI model", value="gpt-4o-mini", key="model_hidden")  # stable key
+            api_key=api_key, analysis=st.session_state["analysis"], user_prompt=prompt_txt, model=llm_model
         )
         if corr_eq8:
-            add_chat("assistant", "I can pre-clean the premaster: subtle mud control / harshness relief. Rendering…")
-            
+            add_chat("assistant", "i can pre-clean the premaster—little mud control, little harshness relief. doing that now…")
             corrected_path = os.path.join(os.path.dirname(in_path), "premaster_corrected.wav")
             try:
                 apply_corrective_eq(in_path, corrected_path, corr_eq8, corr_notches)
                 master_input_path = corrected_path
-                # Re-analyze the corrected file so the mastering plan “hears” it
-                analysis = analyze_audio(corrected_path)
-                st.session_state["analysis"] = analysis
-                add_chat("assistant", "Pre-clean complete. I re-analyzed the corrected premaster.")
-          
-                # Optional preview
+                # Re-analyze the corrected file
+                st.session_state["analysis"] = analyze_audio(corrected_path)
+                add_chat("assistant", "pre-clean done. i re-analyzed the corrected premaster.")
                 st.audio(corrected_path)
             except Exception as e:
-                add_chat("assistant", "Corrective render failed; continuing without pre-clean.")
-              
+                add_chat("assistant", "corrective render tripped—continuing without pre-clean.")
                 st.exception(e)
-        else:
-            if corr_msg:
-                add_chat("assistant", f"ℹ️ Skipping pre-clean: {corr_msg}")
-               
+        elif corr_msg:
+            add_chat("assistant", f"skipping pre-clean: {corr_msg}")
+    except Exception as e:
+        add_chat("assistant", "the corrective planner stumbled—skipping cleanup.")
+        st.exception(e)
 
-# ---------------- Generate adaptive masters (3 variations) ----------------
+# ---------- Generate adaptive masters (3 variations) ----------
 variant_notes = [
     "Variant A – slightly darker, preserve transients, keep hats smooth.",
     "Variant B – neutral mid focus, tighten lows a touch, gentle presence.",
@@ -508,18 +259,21 @@ variant_notes = [
 ]
 
 def get_sectioned_plans(variant_idx: int, seed: str, api_key: str):
-    """Ask the LLM for one plan (may be single or sectioned); normalize to verse/drop."""
     note = variant_notes[variant_idx]
-    v_prompt = (prompt_txt or "").strip()
-    v_prompt = f"{v_prompt}\n{note}\nVariation seed: {seed}. Make choices distinct from other variations; different EQ emphases, thresholds, and saturation rationale."
+    v_prompt = (st.session_state.get("vibe_prompt") or "").strip()
+    # use UI prompt but ensure uniqueness per variant
+    v_prompt = f"{(v_prompt or '').strip()}\n{note}\nVariation seed: {seed}. Make choices distinct from other variations; different EQ emphases, thresholds, and saturation rationale."
 
     plan, msg = llm_plan(
-        analysis=analysis,
-        intent=intent,
+        analysis=st.session_state["analysis"],
+        intent={"tone": float(st.session_state.get("tone", 0.0)),
+                "dynamics": float(st.session_state.get("dynamics", 0.0)),
+                "stereo": float(st.session_state.get("stereo", 0.0)),
+                "character": float(st.session_state.get("character", 0.5))},
         user_prompt=v_prompt,
-        model=st.session_state.get("model_hidden", "gpt-4o-mini"),
-        reference_txt=reference_txt,
-        reference_weight=reference_weight,
+        model=llm_model,
+        reference_txt=st.session_state.get("reference_txt", ""),
+        reference_weight=float(st.session_state.get("reference_weight", 0.0)),
         api_key=api_key,
     )
     if not plan:
@@ -527,7 +281,6 @@ def get_sectioned_plans(variant_idx: int, seed: str, api_key: str):
 
     ok, errs = validate_plan(plan)
     if not ok:
-        # Try to normalize single → sectioned anyway; still report validation errors
         if isinstance(plan, dict) and "targets" in plan:
             v_plan, d_plan = derive_section_plans_from_single(plan)
             return {"verse": v_plan, "drop": d_plan}, f"validated with warnings: {errs}"
@@ -539,64 +292,102 @@ def get_sectioned_plans(variant_idx: int, seed: str, api_key: str):
         v_plan, d_plan = derive_section_plans_from_single(plan)
         return {"verse": v_plan, "drop": d_plan}, "derived"
 
-if gen_click:
-    with right:
-        api_key = st.secrets.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
-        # Optional: detect up to 3 safety notches AFTER corrective cleanup and BEFORE mastering
-        detected_notches = []
+# Persist a few inputs for the planner
+st.session_state["reference_txt"]   = reference_txt
+st.session_state["reference_weight"] = reference_weight
+st.session_state["vibe_prompt"]     = prompt_txt
+st.session_state["tone"]            = tone
+st.session_state["dynamics"]        = dynamics
+st.session_state["stereo"]          = stereo
+st.session_state["character"]       = character
+
+if gen_click and "analysis" in st.session_state:
+    api_key = st.secrets.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+    # Optional: detect safety notches AFTER corrective cleanup / BEFORE mastering
+    detected_notches = []
+    try:
         if post_notch:
-            try:
-                detected_notches = detect_resonances_simple(master_input_path, max_notches=3, min_prom_db=3.0)
-                if detected_notches:
-                    add_chat("assistant", f"I found a few narrow resonances. I’ll notch them subtly: {detected_notches}")
-                else:
-                    add_chat("assistant", "No strong resonances detected — proceeding clean.")
-            except Exception:
-                add_chat("assistant", "Resonance detection had an issue; continuing without notches.")
-     
-        for i in range(3):
-            st.markdown(f"<h2>Variation {i+1}</h2>", unsafe_allow_html=True)
-            try:
-                seed = f"{uuid.uuid4().hex[:8]}-{i+1}"
-                sectioned, status = get_sectioned_plans(i, seed, api_key)
-                if not sectioned:
-                    add_chat("assistant", f"LLM plan unavailable for Variation {i+1}.")
-                 
-                    continue
+            detected_notches = detect_resonances_simple(master_input_path, max_notches=3, min_prom_db=3.0) or []
+            if detected_notches:
+                add_chat("assistant", f"i found a few narrow resonances—i’ll notch them gently: {detected_notches}")
+            else:
+                add_chat("assistant", "no strong resonances jumped out—going clean.")
+    except Exception as e:
+        add_chat("assistant", "resonance detection flaked—continuing without notches.")
+        st.exception(e)
+        detected_notches = []
 
-                with st.expander(f"AI Plan – Variation {i+1} ({status})"):
-                    st.code(json.dumps(sectioned, indent=2))
+    for i in range(3):
+        st.markdown(f"### Variation {i+1}")
+        try:
+            seed = f"{uuid.uuid4().hex[:8]}-{i+1}"
+            sectioned, status = get_sectioned_plans(i, seed, api_key)
+            if not sectioned:
+                add_chat("assistant", f"planning hiccup on variation {i+1}.")
+                continue
 
-                out_path = os.path.join(base, f"master_ai_adaptive_v{i+1}.wav")
-                render_adaptive_from_plans(
-                    master_input_path,
-                    out_path,
-                    sectioned["verse"],
-                    sectioned["drop"],
-                    notches=detected_notches
-                )
-                add_chat("assistant", f"🎧 Variation {i+1} is ready. I adjusted verse/drop separately to fit the vibe.")
-           
-                st.audio(out_path)
-                with open(out_path, "rb") as f:
-                    st.download_button(
-                        f"Download Adaptive V{i+1}",
-                        f.read(),
-                        file_name=f"master_ai_adaptive_v{i+1}.wav"
-                    )
-            except Exception as e:
-                add_chat("assistant", f"Render failed for Variation {i+1}.")
-            
-                st.exception(e)
+            with st.expander(f"AI Plan – Variation {i+1} ({status})"):
+                st.code(json.dumps(sectioned, indent=2))
 
-# ---------------- Debug (collapsible) ----------------
-with st.expander("Debug"):
-    st.write({
-        "in_path_exists": os.path.exists(in_path),
-        "in_path": in_path,
-        "base_dir": base,
-        "reference_txt": reference_txt,
-        "reference_weight": reference_weight,
-        "chat_len": len(st.session_state["chat"]),
-    })
+            out_path = os.path.join(base_dir, f"master_ai_adaptive_v{i+1}.wav")
+            render_adaptive_from_plans(
+                master_input_path, out_path,
+                sectioned["verse"], sectioned["drop"],
+                notches=detected_notches
+            )
+            add_chat(
+                "assistant",
+                f"variation {i+1} is ready—verse/drop tailored to your vibe.",
+                attachments=[{
+                    "type": "html",
+                    "html": f"""
+                    <div style='border:1px solid #e6eaf0;border-radius:6px;padding:8px'>
+                    <div style='font-size:12px;color:#6b7280;margin-bottom:6px'>Result • V{i+1}</div>
+                    <div style='display:flex;gap:12px;flex-wrap:wrap;font-size:13px'>
+                        <span>LUFS target: {sectioned['verse'].get('targets',{}).get('lufs_i','—')}</span>
+                        <span>TP: {sectioned['verse'].get('targets',{}).get('true_peak_db','—')} dBFS</span>
+                    </div>
+                    </div>
+                    """
+                }]
+            )
+
+        except Exception as e:
+            add_chat("assistant", f"render failed on variation {i+1}.")
+            st.exception(e)
+
+def tonal_png_data_url(bands_pct_8: dict) -> str | None:
+    """Make a small EQ-like line chart PNG and return a data URL for embedding in chat."""
+    try:
+        BAND_ORDER  = ["sub","low_bass","high_bass","low_mids","mids","high_mids","highs","air"]
+        vals = [max(1e-12, float(bands_pct_8.get(b, 0.0))) for b in BAND_ORDER]
+        total = sum(vals) or 1.0
+        shares = [v/total for v in vals]
+        gmean = float(np.exp(np.mean(np.log(shares))))
+        dev_db = [20.0*np.log10(s/gmean) for s in shares]
+
+        # pretty labels
+        x_labels = ["Sub", "Lo Bass", "Hi Bass", "Lo Mids", "Mids", "Hi Mids", "Highs", "Air"]
+
+        fig, ax = plt.subplots(figsize=(6.0, 2.2), dpi=180)
+        ax.plot(range(len(dev_db)), dev_db, marker="o")
+        ax.set_xticks(range(len(x_labels)))
+        ax.set_xticklabels(x_labels, fontsize=8)
+        ax.set_ylim(-12, 12)
+        ax.grid(True, alpha=0.25)
+        ax.set_ylabel("Δ vs band avg (dB)", fontsize=8)
+        for spine in ("top","right"):
+            ax.spines[spine].set_visible(False)
+
+        buf = io.BytesIO()
+        fig.tight_layout()
+        fig.savefig(buf, format="png", transparent=True)
+        plt.close(fig)
+        data = base64.b64encode(buf.getvalue()).decode()
+        return f"data:image/png;base64,{data}"
+    except Exception:
+        return None
+
+
+# close shell
 st.markdown('</div>', unsafe_allow_html=True)
