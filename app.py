@@ -122,7 +122,7 @@ st.markdown("""
 
 /* ---------- Palette (light terminal) ---------- */
 :root{
-  --bg: #F7F8FA;
+  --bg: #FAF9F6;
   --panel: #FFFFFF;
   --ink: #2F3640;          /* readable but not heavy */
   --ink-dim: #6B7280;      /* secondary */
@@ -143,7 +143,7 @@ st.markdown("""
   z-index: 1000;
   margin: 0 !important;
   padding-bottom: 10px;
-  background: #F7F9FC;                  /* your light panel */
+  background: #Fff;                  /* your light panel */
   border-bottom: 1px solid rgba(0,0,0,.08);
   align-items:center;
 }
