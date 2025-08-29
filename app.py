@@ -270,12 +270,12 @@ h2 { font-size: 16px !important; }
 """, unsafe_allow_html=True)
 
 
-
+logo = "imgs/1.png"
 # Top bar (plugin-like)
 st.markdown(f"""
     <div class='vale-nav'>
         <div style='opacity:.65;'>Mastering Engineer</div>
-        <img src='{imgs/1.png}' width='500' height='500'>
+        <img src='{logo}' width='500' height='500'>
         <div style='opacity:.6;'>You create ideas, we make them real.</div>
     </div>""",
     unsafe_allow_html=True
