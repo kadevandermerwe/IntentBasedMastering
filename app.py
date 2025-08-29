@@ -424,17 +424,6 @@ with right:
             </div>
           </div>
         """, unsafe_allow_html=True)
-    
-    
-    
-    
-        # Auto-scroll to bottom (each rerun)
-        components_html("""
-            <script>
-            const box = window.parent.document.getElementById('vale-chatbox');
-            if (box) { box.scrollTop = box.scrollHeight; }
-            </script>
-        """, height=0, width=0)
         
         autoscroll_chatbox()
         
