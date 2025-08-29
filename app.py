@@ -19,67 +19,177 @@ from corrective import llm_corrective_cleanup, apply_corrective_eq
 
 # ---------------- Page / Theme ----------------
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
+# after: import altair as alt
+def _vale_altair_theme():
+    return {
+        "config": {
+            "background": "transparent",
+            "axis": {
+                "labelColor": "#2A3542",
+                "titleColor": "#2A3542",
+                "gridColor": "#E6EAF1",
+                "domainColor": "#DDE2EA",
+            },
+            "view": {"stroke": "transparent"},
+            "line": {"strokeWidth": 2},
+            "point": {"filled": True, "size": 60},
+        }
+    }
+alt.themes.register("vale_light_cli", _vale_altair_theme)
+alt.themes.enable("vale_light_cli")
+
 
 # Inject DAW-like CSS (matte, flat, minimal)
 st.markdown("""
 <style>
 /* Hide Streamlit chrome */
-#MainMenu {visibility: hidden;}
-header {visibility: hidden;}
-footer {visibility: hidden;}
+#MainMenu, header, footer { display:none !important; }
 
-/* Base theme */
-body, .block-container {
-  background-color: #17191C !important;
-  color: #E8ECEF !important;
-  font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji" !important;
+/* ---------- Palette & tokens (terminal-light) ---------- */
+:root{
+  --bg: #F6F7F9;            /* paper light grey */
+  --panel: #FFFFFFEE;       /* white w/ slight translucency */
+  --panel-border: #DDE2EA;  /* cool light border */
+  --ink: #111317;           /* primary text */
+  --ink-dim: #4A5564;       /* secondary text */
+  --divider: #E6EAF1;       /* separators */
+  --accent: #5EA2FF;        /* muted light blue */
+  --accent-ghost: rgba(94,162,255,0.14);  /* translucent blue */
+  --accent-ghost-2: rgba(94,162,255,0.07);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Courier New", monospace;
+  --radius: 10px;
 }
 
-/* Headings */
-h1, h2, h3 { color: #E8ECEF !important; letter-spacing: 0.2px; }
-h1 { font-size: 28px !important; margin: 4px 0 8px; }
-h2 { font-size: 20px !important; margin: 10px 0 4px; color:#BFD6FF !important; }
+/* ---------- Base canvas with subtle scanlines/noise ---------- */
+html, body, .block-container {
+  background: var(--bg) !important;
+  color: var(--ink) !important;
+  font-family: var(--mono) !important;
+}
 
-/* Panels */
+/* faint scanlines */
+.block-container::before{
+  content:"";
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(to bottom,
+    transparent 0px, transparent 3px, rgba(17,19,23,0.02) 3px, rgba(17,19,23,0.02) 4px);
+  pointer-events:none; z-index:0;
+}
+
+/* subtle vignette */
+.block-container::after{
+  content:"";
+  position:fixed; inset:0;
+  background: radial-gradient(80% 60% at 50% 40%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.04) 100%);
+  pointer-events:none; z-index:0;
+}
+
+/* ---------- “Panels” -> modern terminal cards ---------- */
 .vale-panel {
-  background: #1F2226;
-  border: 1px solid #2C3138;
-  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
   padding: 14px 14px 10px;
+  box-shadow: 0 1px 0 var(--divider), 0 12px 30px rgba(0,0,0,0.04);
+  position: relative;
 }
-.vale-divider { height: 1px; background:#2C3138; margin: 10px 0 6px; }
 
-/* Buttons */
-.stButton>button {
-  background: #2A2F36;
-  color: #E8ECEF;
-  border: 1px solid #2F3640;
-  border-radius: 8px;
-  padding: 8px 12px;
+.vale-divider { height:1px; background:var(--divider); margin:10px 0 8px; }
+
+/* ---------- Headings: terminal cursor accent ---------- */
+h1,h2,h3 { color: var(--ink); letter-spacing: .2px; }
+h1 { font-size: 26px !important; margin: 2px 0 6px; }
+h2 { font-size: 18px !important; margin: 8px 0 4px; color:#2A3542 !important; }
+h2::after{
+  content:"_";
+  margin-left:6px;
+  color: var(--accent);
+  opacity:.7;
+  animation: blink 1.2s steps(2, start) infinite;
 }
-.stButton>button:hover { border-color: #6AA9FF; }
+@keyframes blink { to { visibility:hidden; }}
 
-/* Inputs */
-.stTextInput>div>div>input,
+/* ---------- Inputs / sliders ---------- */
+.stTextInput input,
 .stTextArea textarea {
-  background:#1A1C1F; color:#E8ECEF;
-  border:1px solid #2C3138; border-radius:8px;
+  background:#FBFCFE;
+  border:1px solid var(--panel-border);
+  border-radius: var(--radius);
+  color:var(--ink);
 }
-.stSlider > div > div { color:#9FB6D1 !important; }
+.stTextInput input:focus,
+.stTextArea textarea:focus {
+  outline: 2px solid var(--accent-ghost);
+  border-color: var(--accent);
+  box-shadow:none;
+}
 
-/* Chat bubbles */
+.stSlider > div [role="slider"] {
+  border:1px solid var(--panel-border);
+  background:white;
+}
+.stSlider > div [data-baseweb="slider"] div[role="slider"]{
+  box-shadow: 0 0 0 4px var(--accent-ghost-2);
+}
+.stSlider > div [data-testid="stTickBarMin"],
+.stSlider > div [data-testid="stTickBarMax"]{ color:var(--ink-dim); }
+
+/* ---------- Buttons ---------- */
+.stButton>button {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F5F8FF 100%);
+  border:1px solid var(--panel-border);
+  border-radius: 8px;
+  color: var(--ink);
+  padding: 8px 12px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.stButton>button:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-ghost);
+}
+
+/* ---------- Chat (terminal bubbles) ---------- */
 .vale-chat { display:flex; flex-direction:column; gap:12px; }
-.vale-bubble {
-  border:1px solid #2C3138; border-radius:14px; padding:12px 14px; line-height:1.4;
+.vale-bubble{
+  border:1px dashed var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #FFFFFFCC;
+  backdrop-filter: blur(2px);
+  position: relative;
 }
-.vale-bubble.assistant { background:#1E2A38; border-color:#294158; }
-.vale-bubble.user { background:#212427; border-color:#2E343C; align-self:flex-end; }
-.vale-bubble small { color:#9FB6D1; }
+.vale-bubble.assistant{
+  background: linear-gradient(0deg, var(--accent-ghost), var(--accent-ghost));
+  border-color: rgba(94,162,255,0.4);
+}
+.vale-bubble.user{
+  align-self:flex-end;
+  background: #FFFFFFEE;
+}
 
-/* Audio players & download buttons */
-audio { width: 100%; }
+/* tiny label stripe */
+.vale-bubble.assistant::before,
+.vale-bubble.user::before{
+  content: attr(data-role);
+  position:absolute; top:-10px; left:12px;
+  font-size:10px; letter-spacing:.4px;
+  background:white; padding:0 6px; border-radius:6px;
+  border:1px solid var(--panel-border);
+  color: var(--ink-dim);
+}
+
+/* Audio element */
+audio { width:100%; }
+
+/* Expanders minimal */
+details, .streamlit-expanderHeader {
+  background: var(--panel);
+  border:1px solid var(--panel-border) !important;
+  border-radius: var(--radius) !important;
+}
 </style>
 """, unsafe_allow_html=True)
+
 
 # Top bar (plugin-like)
 st.markdown(
@@ -109,11 +219,15 @@ def render_chat():
     for msg in st.session_state["chat"]:
         role = msg.get("role", "assistant")
         cls = "assistant" if role != "user" else "user"
+        safe = (msg.get("text","")
+                .replace("&","&amp;").replace("<","&lt;").replace(">","&gt;"))  # basic sanitize
         st.markdown(
-            f"<div class='vale-bubble {cls}'><div>{msg.get('text','')}</div></div>",
+            f"<div class='vale-bubble {cls}' data-role='{role.upper()}'>"
+            f"<div style='white-space:pre-wrap'>{safe}</div></div>",
             unsafe_allow_html=True
         )
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 # ---------------- Utility ----------------
 def _safe_name(name: str) -> str:
