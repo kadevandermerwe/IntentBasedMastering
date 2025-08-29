@@ -274,7 +274,7 @@ h2 { font-size: 16px !important; }
 st.markdown("""
     <div class='vale-nav'>
         <div style='display:flex; gap:10px; margin:0;'>
-            <div style='font-size:40px; font-weight:600;'>Vale</div>
+            <div style='font-size:20px; font-weight:600;'>Vale</div>
             <div style='opacity:.65;'>Mastering Engineer</div>
         </div>
         <div style='opacity:.6;'>You create ideas, we make them real.</div>
