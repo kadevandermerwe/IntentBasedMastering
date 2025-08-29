@@ -20,6 +20,7 @@ from ai import llm_plan
 from diagnostics import validate_plan
 from corrective import llm_corrective_cleanup, apply_corrective_eq
 from chat_ui import *
+from streamlit.components.v1 import html as st_html
 
 # ---------------- Page / Theme ----------------
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
