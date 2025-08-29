@@ -344,6 +344,7 @@ def tonal_chart(df: pd.DataFrame):
                  alt.Tooltip("Share (%):Q", format=".1f")],
     ).properties(height=240)
 
+st.markdown('<div class="vale-shell">', unsafe_allow_html=True)
 # ---------------- LAYOUT: two panes ----------------
 left, right = st.columns([0.92, 1.48], gap="medium")
 
@@ -586,3 +587,4 @@ with st.expander("Debug"):
         "reference_weight": reference_weight,
         "chat_len": len(st.session_state["chat"]),
     })
+st.markdown('<div/>', unsafe_allow_html=True)
