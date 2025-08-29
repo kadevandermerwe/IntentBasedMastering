@@ -175,6 +175,7 @@ body {
 
     margin-top: -4rem;
     padding:0;
+    width:70%;
     
     
     }
