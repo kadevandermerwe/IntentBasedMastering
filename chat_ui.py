@@ -94,11 +94,9 @@ def render_chat(
           padding: 10px;
         }}
         .hdr {{
-          display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px;
+          display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
         }}
         .avatar {{
-          display:flex;
-          justify-content:space-between;
           width:50px;
         }}
         .hdr-title {{ margin:0; font-size:16px; font-weight:800; color: var(--ink); }}
