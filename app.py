@@ -443,7 +443,7 @@ with right:
     st.markdown("<h2>Vale</h2>", unsafe_allow_html=True)
 
              # anchor
-    render_chatbox() 
+    render_chatbox(container) 
 
     # ANALYZE
     if analyze_click or "analysis" not in st.session_state:
