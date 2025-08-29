@@ -442,7 +442,7 @@ in_path = st.session_state["in_path"]
 with right:
     st.markdown("<h2>Vale</h2>", unsafe_allow_html=True)
 
-             # anchor
+    container = st.container()         # anchor
     render_chatbox(container) 
 
     # ANALYZE
