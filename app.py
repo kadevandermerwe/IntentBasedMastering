@@ -26,43 +26,59 @@ from streamlit.components.v1 import html as st_html
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
 
 # --- Nuke Streamlit top spacing aggressively ---
+# --- Kill all top chrome & padding, old + new selectors ---
 st.markdown("""
 <style>
-/* 1) Hide Streamlit header/toolbar */
-header[data-testid="stHeader"]{display:none !important;}
-div[data-testid="stToolbar"]{display:none !important;}
+/* Hide Streamlit header/toolbar */
+header[data-testid="stHeader"], div[data-testid="stToolbar"] { display:none !important; }
 
-/* 2) Remove top padding on every app wrapper */
+/* Remove top padding on the app view (old & new structure) */
 [data-testid="stAppViewContainer"] { padding-top: 0 !important; }
-main .block-container { padding-top: 0 !important; }
+[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; } /* newer */
+main .block-container, [data-testid="block-container"] { padding-top: 0 !important; }
 
-/* 3) Prevent first-child margin collapse (the usual invisible culprit) */
-main .block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+/* Prevent first-child margin collapse (common invisible culprit) */
+main .block-container > div:first-child,
+[data-testid="block-container"] > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
 main .block-container h1:first-child,
 main .block-container h2:first-child,
 main .block-container p:first-child { margin-top: 0 !important; }
 
-/* Optional: zero page/body margins so nothing pushes content down */
+/* Also zero the global app wrapper */
+.stApp { margin-top: 0 !important; }
+
+/* Absolutely no default margins/padding from the document */
 html, body { margin:0 !important; padding:0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# Belt-and-suspenders: force after-render zeroing (some themes re-add padding)
+# Re-apply after reruns (themes sometimes re-inject padding)
+from streamlit.components.v1 import html as st_html
 st_html("""
 <script>
 (function(){
-  const tryFix = () => {
+  const fix = () => {
     const doc = window.parent?.document || document;
-    const head = doc.querySelector('header[data-testid="stHeader"]');
-    if (head) head.style.display = 'none';
-    const bc = doc.querySelector('main .block-container');
-    if (bc) bc.style.paddingTop = '0px';
-    const first = bc?.querySelector(':scope > div:first-child');
-    if (first){ first.style.marginTop='0px'; first.style.paddingTop='0px'; }
+    const sel = (s) => doc.querySelector(s);
+    const hide = sel('header[data-testid="stHeader"]');
+    if (hide) hide.style.display = 'none';
+    const app = sel('[data-testid="stAppViewContainer"]');
+    if (app) { app.style.paddingTop = '0px'; }
+    const main = sel('[data-testid="stAppViewContainer"] > .main');
+    if (main) { main.style.paddingTop = '0px'; }
+    const bc1 = sel('main .block-container');
+    const bc2 = sel('[data-testid="block-container"]');
+    const bc = bc1 || bc2;
+    if (bc) {
+      bc.style.paddingTop = '0px';
+      const first = bc.querySelector(':scope > div:first-child');
+      if (first) { first.style.marginTop = '0px'; first.style.paddingTop = '0px'; }
+    }
+    const stApp = sel('.stApp');
+    if (stApp) stApp.style.marginTop = '0px';
   };
-  tryFix();
-  // Re-apply after reruns
-  new MutationObserver(tryFix).observe(document.body, { childList:true, subtree:true });
+  fix();
+  new MutationObserver(fix).observe(document.body, { childList:true, subtree:true });
 })();
 </script>
 """, height=0)
