@@ -136,12 +136,13 @@ st.markdown("""
 .vale-nav {
   display:flex;
   justify-content:center;
-  text-align:centre;
+  text-align:center;
   position: fixed;     /* stays at top on scroll */
   top: 0;
   width:100vw;
   z-index: 1000;
-  margin:auto;
+  margin-left:25vw;
+  margin-right:25vw;
   padding-bottom: 10px;
   padding-top:10px;
   background: #Fff;                  /* your light panel */
