@@ -592,4 +592,4 @@ with st.expander("Debug"):
         "reference_weight": reference_weight,
         "chat_len": len(st.session_state["chat"]),
     })
-st.markdown('<div/>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
