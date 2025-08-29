@@ -276,7 +276,7 @@ def img_to_base64(path):
         data = f.read()
     return base64.b64encode(data).decode()
 
-logo_path = "imgs/1.png"
+logo_path = "imgs/2.png"
 logo_base64 = img_to_base64(logo_path)
 
 st.markdown(f"""
