@@ -3,7 +3,6 @@ import streamlit as st
 from streamlit.components.v1 import html as components_html
 import html as pyhtml
 import random, re
-from app import logo_path
 
 def _esc(s: str) -> str:
     return pyhtml.escape(s or "")
