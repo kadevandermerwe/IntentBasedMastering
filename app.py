@@ -124,6 +124,7 @@ st.markdown("""
 .vale-nav {
   display:flex;
   justify-content:space-between;
+  text-align:centre;
   position: sticky;     /* stays at top on scroll */
   top: 0;
   z-index: 1000;
