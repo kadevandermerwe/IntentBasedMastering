@@ -92,7 +92,7 @@ if (
     try:
         uploaded.seek(0)  # make sure pointer is at start
         with open(in_path, "wb") as f:
-            shutil.copyfileobj(uploaded, f, length=1024 * 1024)  # 1MB chunks
+            shutil.copyfileobj(uploaded, f, length=16 * 1024 * 1024)  # 1MB chunks
         uploaded.seek(0)
     except Exception as e:
         st.error("❌ Failed writing the uploaded file to /tmp.")
