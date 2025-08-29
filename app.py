@@ -30,7 +30,7 @@ def img_to_base64(path):
     return base64.b64encode(data).decode()
 
 logo_path = "imgs/2.png"
-avatar_path = "imgs/2.png"
+avatar_path = "imgs/shadow.png"
 logo_base64 = img_to_base64(logo_path)
 avatar_base64 = img_to_base64(avatar_path)
 
