@@ -32,14 +32,12 @@ def add_chat(role: str, text: str, state_key: str = "chat"):
     st.session_state[state_key].append({"role": (role or "assistant"), "text": text or ""})
 
 # ---------------- renderer ----------------
+logo = "imgs/2.png"
 def render_chat(
     container,
     state_key: str = "chat",
-    height: int = 420,
-    title: str = "Vale • Console",
-    subtitle: str = "always on your team",
-    avatar_text: str = "V",           # small letter in circle
-    avatar_img_b64: str | None = None # or pass a base64 PNG if you prefer
+    height: int = 420,    # small letter in circle
+    avatar_img_b64: str | logo  # or pass a base64 PNG if you prefer
 ):
     """
     Renders a single chat panel with autoscroll inside `container`.
