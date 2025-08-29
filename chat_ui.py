@@ -4,6 +4,17 @@ from streamlit.components.v1 import html as components_html
 import html as pyhtml
 import random, re
 
+
+import base64
+
+def img_to_base64(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+logo_path = "imgs/2.png"
+logo_base64 = img_to_base64(logo_path)
+
 def _esc(s: str) -> str:
     return pyhtml.escape(s or "")
 
@@ -100,7 +111,7 @@ def render_chat(container, state_key: str = "chat", height: int = 420):
     <body>
       <div class="panel">
         <div class="hdr">
-          <div class="avatar"></div>
+          <div class="avatar"><img src="f{logo_path}"</div>
         </div>
         <div id="vale-box" class="box">
           {rows_html}
