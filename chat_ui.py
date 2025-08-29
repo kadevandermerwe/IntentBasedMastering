@@ -101,9 +101,8 @@ def render_chat(container, state_key: str = "chat", height: int = 420):
     <body>
       <div class="panel">
         <div class="hdr">
-          <div class="avatar">V</div>
+          <div class="avatar"></div>
         </div>
-
         <div id="vale-box" class="box">
           {rows_html}
         </div>
