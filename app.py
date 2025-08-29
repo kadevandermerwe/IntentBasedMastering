@@ -20,6 +20,27 @@ from ai import llm_plan
 from diagnostics import validate_plan
 from corrective import llm_corrective_cleanup, apply_corrective_eq
 
+# ---------------- Page / Theme ----------------
+st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
+# after: import altair as alt
+def _vale_altair_theme():
+    return {
+        "config": {
+            "background": "transparent",
+            "axis": {
+                "labelColor": "#2A3542",
+                "titleColor": "#2A3542",
+                "gridColor": "#E6EAF1",
+                "domainColor": "#DDE2EA",
+            },
+            "view": {"stroke": "transparent"},
+            "line": {"strokeWidth": 2},
+            "point": {"filled": True, "size": 60},
+        }
+    }
+alt.themes.register("vale_light_cli", _vale_altair_theme)
+alt.themes.enable("vale_light_cli")
+
 # Top bar (plugin-like)
 st.markdown(
     "<div class='vale-panel' style='display:flex; align-items:center; justify-content:space-between;'>"
@@ -149,26 +170,7 @@ def vale_say(message: str) -> str:
 
 
 
-# ---------------- Page / Theme ----------------
-st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
-# after: import altair as alt
-def _vale_altair_theme():
-    return {
-        "config": {
-            "background": "transparent",
-            "axis": {
-                "labelColor": "#2A3542",
-                "titleColor": "#2A3542",
-                "gridColor": "#E6EAF1",
-                "domainColor": "#DDE2EA",
-            },
-            "view": {"stroke": "transparent"},
-            "line": {"strokeWidth": 2},
-            "point": {"filled": True, "size": 60},
-        }
-    }
-alt.themes.register("vale_light_cli", _vale_altair_theme)
-alt.themes.enable("vale_light_cli")
+
 
 
 # Inject DAW-like CSS (matte, flat, minimal)
