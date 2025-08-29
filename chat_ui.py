@@ -15,6 +15,11 @@ def img_to_base64(path):
 logo_path = "imgs/2.png"
 logo_base64 = img_to_base64(logo_path)
 
+if logo_path:
+        avatar_inner = f'<img src="data:image/png;base64,{logo_path}" style="width:100%;height:100%;border-radius:50%;">'
+    else:
+        avatar_inner = _esc(avatar_text or "V")
+
 def _esc(s: str) -> str:
     return pyhtml.escape(s or "")
 
@@ -84,7 +89,7 @@ def render_chat(container, state_key: str = "chat", height: int = 420,  logo_pat
         }}
         .avatar {{
           width:38px; height:38px; border-radius:50%;
-          background: src({logo_path});
+          background: src({avatar_inner});
           display:flex; align-items:center; justify-content:center;
           color: var(--accent); font-weight:700;
         }}
