@@ -169,6 +169,9 @@ body {
     padding-top: -2rem;
     
     }
+html {
+background: #fff;
+}
 
 .block-container {
 
