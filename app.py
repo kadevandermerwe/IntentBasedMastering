@@ -436,7 +436,7 @@ with right:
     render_chat(container,
     state_key="chat",
     height=420,
-    avatar_img_b64=logo_path ) 
+    avatar_img_b64=logo_base64 ) 
 
     # ANALYZE
     if analyze_click or "analysis" not in st.session_state:
