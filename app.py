@@ -65,8 +65,9 @@ html, body, .block-container {
   background: var(--bg) !important;
   color: var(--ink) !important;
   font-family: var(--mono) !important;
-  margin: 1px;
+  margin: auto;
   padding: 0px;
+  width: 90%;
 }
 
 
