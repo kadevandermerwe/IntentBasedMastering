@@ -125,7 +125,7 @@ st.markdown("""
   display:flex;
   justify-content:center;
   text-align:centre;
-  position: absolute;     /* stays at top on scroll */
+  position: sticky;     /* stays at top on scroll */
   top: 0;
   width:100%;
   z-index: 1000;
