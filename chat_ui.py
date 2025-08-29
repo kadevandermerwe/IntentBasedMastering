@@ -90,18 +90,8 @@ def render_chat(
         .panel {{
           padding: 10px;
         }}
-        .element::-webkit-scrollbar {{
+        .box::-webkit-scrollbar {{
           display: none; /* Hides scrollbar */
-        }}
-
-        /* Hide scrollbar for Firefox */
-        .element {{
-          scrollbar-width: none; /* Hides scrollbar */
-        }}
-
-        /* Optional: Prevent scrollbar space */
-        .element {{
-          -ms-overflow-style: none; /* IE and Edge */
         }}
         .hdr {{
           display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
@@ -111,13 +101,13 @@ def render_chat(
         }}
         .hdr-title {{ margin:0; font-size:16px; font-weight:800; color: var(--ink); }}
         .hdr-sub {{ font-size:12px; color: var(--ink-dim); }}
-
         .box {{
           height: {height-90}px;  /* scrollable area */
+          -ms-overflow-style: none; /* IE and Edge */
+          scrollbar-width: none; /* Hides scrollbar */
           overflow-y: auto;
           padding: 8px;
         }}
-
         .msg {{ border: 1px dashed var(--border); border-radius: 4px;
                 padding: 8px 10px; margin: 0 0 8px 0; }}
         .msg.user {{ background: transparent; }}
