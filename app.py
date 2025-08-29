@@ -153,6 +153,7 @@ st.markdown("""
 .vale-shell {
     width: 70%;
     margin: auto;
+}
 
 /* Page canvas */
 html, body, .block-container {
