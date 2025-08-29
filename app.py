@@ -19,6 +19,60 @@ from ai import llm_plan
 from diagnostics import validate_plan
 from corrective import llm_corrective_cleanup, apply_corrective_eq
 
+def _esc(s: str) -> str:
+    return (s or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+
+def init_chat_state():
+    if "chat" not in st.session_state:
+        st.session_state["chat"] = [
+            {"role":"assistant","text":"Hey — drop a premaster and describe the vibe. I’ll adapt as we go."}
+        ]
+
+def add_chat(role: str, text: str):
+    st.session_state["chat"].append({"role": role, "text": text})
+
+def render_chatbox():
+    # Bordered panel
+    st.markdown("<div class='vale-chat-panel'>", unsafe_allow_html=True)
+    st.markdown("<h2>Vale · Console</h2>", unsafe_allow_html=True)
+
+    # Scrollable box
+    st.markdown("<div id='vale-chatbox'>", unsafe_allow_html=True)
+    for m in st.session_state["chat"]:
+        role = m.get("role","assistant")
+        cls = "assistant" if role != "user" else "user"
+        st.markdown(
+            f"<div class='vale-msg {cls}'>"
+            f"<div class='vale-role'>{_esc(role.upper())}</div>"
+            f"<div>{_esc(m.get('text',''))}</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Auto-scroll to bottom (each rerun)
+    components_html("""
+        <script>
+        const box = window.parent.document.getElementById('vale-chatbox');
+        if (box) { box.scrollTop = box.scrollHeight; }
+        </script>
+    """, height=0, width=0)
+
+    # Input row (hard-cornered)
+    with st.container():
+        col = st.container()
+        st.markdown("<div class='vale-input-row'>", unsafe_allow_html=True)
+        user_txt = st.text_input("Message", key="vale_chat_input", label_visibility="collapsed", placeholder="Type to Vale…")
+        send = st.button("Send")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    if send and user_txt.strip():
+        add_chat("user", user_txt.strip())
+        # Minimal echo; wire this to your app events if you want
+        add_chat("assistant", "Noted. I’ll factor that into the next plan/render.")
+        st.experimental_rerun()
+
+
 # ---------------- Page / Theme ----------------
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
 # after: import altair as alt
