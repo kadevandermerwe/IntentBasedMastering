@@ -150,7 +150,7 @@ body {
 
 .block-container {
 
-    margin-top: -10rem;
+    margin-top: -3rem;
     padding: 0px;
     
     }
