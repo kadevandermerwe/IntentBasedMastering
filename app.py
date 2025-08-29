@@ -6,7 +6,6 @@ import altair as alt
 import streamlit as st
 from streamlit.components.v1 import html as components_html
 import random, re
-from imgs import 1.png, 2.png
 
 
 from utils import session_tmp_path
