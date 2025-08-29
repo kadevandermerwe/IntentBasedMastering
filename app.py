@@ -210,6 +210,33 @@ def init_chat_state():
 def add_chat(role: str, text: str):
     st.session_state["chat"].append({"role": role, "text": text})
 
+def autoscroll_chatbox():
+    components_html("""
+    <div></div>
+    <script>
+    (function(){
+      function scrollBox(){
+        try{
+          const box = window.parent.document.querySelector('#vale-chatbox');
+          if (box){ box.scrollTop = box.scrollHeight; }
+        }catch(e){}
+      }
+      // initial & a couple of retries
+      scrollBox();
+      setTimeout(scrollBox, 60);
+      setTimeout(scrollBox, 200);
+      // keep pinned with mutations
+      try{
+        const box = window.parent.document.querySelector('#vale-chatbox');
+        if (box){
+          const obs = new MutationObserver(() => scrollBox());
+          obs.observe(box, {childList:true, subtree:true});
+        }
+      }catch(e){}
+    })();
+    </script>
+    """, height=0)
+
 def render_chatbox():
     # Bordered panel
 
@@ -240,32 +267,7 @@ def render_chatbox():
             add_chat("assistant", "Noted. I’ll factor that into the next plan/render.")
             st.experimental_rerun()
 
-def autoscroll_chatbox():
-    components_html("""
-    <div></div>
-    <script>
-    (function(){
-      function scrollBox(){
-        try{
-          const box = window.parent.document.querySelector('#vale-chatbox');
-          if (box){ box.scrollTop = box.scrollHeight; }
-        }catch(e){}
-      }
-      // initial & a couple of retries
-      scrollBox();
-      setTimeout(scrollBox, 60);
-      setTimeout(scrollBox, 200);
-      // keep pinned with mutations
-      try{
-        const box = window.parent.document.querySelector('#vale-chatbox');
-        if (box){
-          const obs = new MutationObserver(() => scrollBox());
-          obs.observe(box, {childList:true, subtree:true});
-        }
-      }catch(e){}
-    })();
-    </script>
-    """, height=0)
+
 
 
        
@@ -458,9 +460,6 @@ with right:
             render_chat()
             st.exception(e)
             st.stop()
-
-    # Render chat so far
-    render_chatbox()
 
     # Tonal balance visualizer
     analysis = st.session_state["analysis"]
