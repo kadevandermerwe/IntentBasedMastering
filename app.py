@@ -30,7 +30,9 @@ def img_to_base64(path):
     return base64.b64encode(data).decode()
 
 logo_path = "imgs/2.png"
+avatar_path = "imgs/2.png"
 logo_base64 = img_to_base64(logo_path)
+avatar_base64 = img_to_base64(avatar_path)
 
 # ---------------- Page / Theme ----------------
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon=logo_path, layout="wide")
@@ -436,7 +438,7 @@ with right:
     render_chat(container,
     state_key="chat",
     height=420,
-    avatar_img_b64=logo_base64 ) 
+    avatar_img_b64=avatar_base64 ) 
 
     # ANALYZE
     if analyze_click or "analysis" not in st.session_state:
