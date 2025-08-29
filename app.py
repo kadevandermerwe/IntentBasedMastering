@@ -20,6 +20,7 @@ from ai import llm_plan
 from diagnostics import validate_plan
 from corrective import llm_corrective_cleanup, apply_corrective_eq
 from chat_ui import *
+from chat_ui import render_chat
 from streamlit.components.v1 import html as st_html
 
 import base64
