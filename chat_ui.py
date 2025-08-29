@@ -84,7 +84,7 @@ def render_chat(container, state_key: str = "chat", height: int = 420):
         }}
         .avatar {{
           width:38px; height:38px; border-radius:50%;
-          background: var(--panel);
+          background: src({logo_path});
           display:flex; align-items:center; justify-content:center;
           color: var(--accent); font-weight:700;
         }}
