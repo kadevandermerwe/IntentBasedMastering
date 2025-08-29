@@ -353,7 +353,7 @@ def tonal_chart(df: pd.DataFrame):
 
 st.markdown('<div class="vale-shell">', unsafe_allow_html=True)
 # ---------------- LAYOUT: two panes ----------------
-left, right = st.columns([0.92, 1.48], gap="medium")
+left, right = st.columns([1.48, 0.92], gap="medium")
 
 # ===== Left: Controls panel =====
 with left:
