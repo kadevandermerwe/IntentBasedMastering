@@ -41,138 +41,6 @@ def _vale_altair_theme():
 alt.themes.register("vale_light_cli", _vale_altair_theme)
 alt.themes.enable("vale_light_cli")
 
-# Top bar (plugin-like)
-st.markdown(
-    "<div class='vale-panel' style='display:flex; align-items:center; justify-content:space-between;'>"
-    "<div style='display:flex; gap:10px; align-items:center;'>"
-    "<div style='font-size:18px; font-weight:600;'>🎛️ Vale Mastering Assistant</div>"
-    "<div style='opacity:.65'>AI Adaptive • 3 Variations</div>"
-    "</div>"
-    "<div style='opacity:.6'>You create ideas, we make them real.</div>"
-    "</div>",
-    unsafe_allow_html=True
-)
-
-def _esc(s: str) -> str:
-    return (s or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-
-def init_chat_state():
-    if "chat" not in st.session_state:
-        st.session_state["chat"] = [
-            {"role":"assistant","text":"Hey — drop a premaster and describe the vibe. I’ll adapt as we go."}
-        ]
-
-def add_chat(role: str, text: str):
-    st.session_state["chat"].append({"role": role, "text": text})
-
-def autoscroll_chatbox():
-    components_html("""
-    <div></div>
-    <script>
-    (function(){
-      function scrollBox(){
-        try{
-          const box = window.parent.document.querySelector('#vale-chatbox');
-          if (box){ box.scrollTop = box.scrollHeight; }
-        }catch(e){}
-      }
-      // initial & a couple of retries
-      scrollBox();
-      setTimeout(scrollBox, 60);
-      setTimeout(scrollBox, 200);
-      // keep pinned with mutations
-      try{
-        const box = window.parent.document.querySelector('#vale-chatbox');
-        if (box){
-          const obs = new MutationObserver(() => scrollBox());
-          obs.observe(box, {childList:true, subtree:true});
-        }
-      }catch(e){}
-    })();
-    </script>
-    """, height=0)
-
-def render_chatbox():
-    # Bordered panel
-
-    st.markdown("""
-    <div class='vale-chat-panel'>
-      <div class='vale-header'>
-        <div class='vale-avatar'>V</div>
-        <div>
-          <h2 style="margin:0;">Vale · Console</h2>
-          <div class='vale-sub'>always on your team</div>
-        </div>
-      </div>
-    """, unsafe_allow_html=True)
-
-
-    # Scrollable box
-    st.markdown("<div id='vale-chatbox'>", unsafe_allow_html=True)
-    for m in st.session_state["chat"]:
-        role = m.get("role","assistant")
-        cls = "assistant" if role != "user" else "user"
-        st.markdown(
-            f"<div class='vale-msg {cls}'>"
-            f"<div class='vale-role'>{_esc(role.upper())}</div>"
-            f"<div>{_esc(m.get('text',''))}</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Auto-scroll to bottom (each rerun)
-    components_html("""
-        <script>
-        const box = window.parent.document.getElementById('vale-chatbox');
-        if (box) { box.scrollTop = box.scrollHeight; }
-        </script>
-    """, height=0, width=0)
-    
-    autoscroll_chatbox()
-    
-    # Input row (hard-cornered)
-    with st.container():
-        col = st.container()
-        st.markdown("<div class='vale-input-row'>", unsafe_allow_html=True)
-        user_txt = st.text_input("Message", key="vale_chat_input", label_visibility="collapsed", placeholder="Type to Vale…")
-        send = st.button("Send")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    if send and user_txt.strip():
-        add_chat("user", user_txt.strip())
-        # Minimal echo; wire this to your app events if you want
-        add_chat("assistant", "Noted. I’ll factor that into the next plan/render.")
-        st.experimental_rerun()
-       
-
-
-VALE_OPENERS = [
-  "so…", "okay—", "alright,", "cool—", "nice—", "gotcha.", "heads up—",
-]
-VALE_HEDGES = [
-  "kinda", "a touch", "a hair", "slightly", "pretty", "fairly",
-]
-def _condense_numbers(txt:str)->str:
-    # turn things like "(~+2.3 dB)" into "+2 dB" for vibe
-    return re.sub(r"([+\-]?\d+(\.\d+)?)\s*dB", lambda m: f"{round(float(m.group(1)))} dB", txt)
-
-def vale_say(message: str) -> str:
-    opener = random.choice(VALE_OPENERS)
-    msg = message.strip()
-    # remove stiff lead-ins
-    msg = re.sub(r'^(analysis|result|note)[:\- ]+', '', msg, flags=re.I)
-    msg = _condense_numbers(msg)
-    return f"{opener} {msg[0].lower()}{msg[1:] if len(msg)>1 else ''}"
-
-
-
-
-
-
-
-
-
 # Inject DAW-like CSS (matte, flat, minimal)
 st.markdown("""
 <style>
@@ -310,6 +178,131 @@ h2 { font-size: 16px !important; }
 </style>
 """, unsafe_allow_html=True)
 
+
+
+# Top bar (plugin-like)
+st.markdown(
+    "<div class='vale-panel' style='display:flex; align-items:center; justify-content:space-between;'>"
+    "<div style='display:flex; gap:10px; align-items:center;'>"
+    "<div style='font-size:18px; font-weight:600;'>🎛️ Vale Mastering Assistant</div>"
+    "<div style='opacity:.65'>AI Adaptive • 3 Variations</div>"
+    "</div>"
+    "<div style='opacity:.6'>You create ideas, we make them real.</div>"
+    "</div>",
+    unsafe_allow_html=True
+)
+
+def _esc(s: str) -> str:
+    return (s or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+
+def init_chat_state():
+    if "chat" not in st.session_state:
+        st.session_state["chat"] = [
+            {"role":"assistant","text":"Hey — drop a premaster and describe the vibe. I’ll adapt as we go."}
+        ]
+
+def add_chat(role: str, text: str):
+    st.session_state["chat"].append({"role": role, "text": text})
+
+def autoscroll_chatbox():
+    components_html("""
+    <div></div>
+    <script>
+    (function(){
+      function scrollBox(){
+        try{
+          const box = window.parent.document.querySelector('#vale-chatbox');
+          if (box){ box.scrollTop = box.scrollHeight; }
+        }catch(e){}
+      }
+      // initial & a couple of retries
+      scrollBox();
+      setTimeout(scrollBox, 60);
+      setTimeout(scrollBox, 200);
+      // keep pinned with mutations
+      try{
+        const box = window.parent.document.querySelector('#vale-chatbox');
+        if (box){
+          const obs = new MutationObserver(() => scrollBox());
+          obs.observe(box, {childList:true, subtree:true});
+        }
+      }catch(e){}
+    })();
+    </script>
+    """, height=0)
+
+def render_chatbox():
+    # Bordered panel
+
+    st.markdown("""
+    <div class='vale-chat-panel'>
+      <div class='vale-header'>
+        <div class='vale-avatar'>V</div>
+        <div>
+          <h2 style="margin:0;">Vale · Console</h2>
+          <div class='vale-sub'>always on your team</div>
+        </div>
+      </div>
+    """, unsafe_allow_html=True)
+
+
+    # Scrollable box
+    st.markdown("<div id='vale-chatbox'>", unsafe_allow_html=True)
+    for m in st.session_state["chat"]:
+        role = m.get("role","assistant")
+        cls = "assistant" if role != "user" else "user"
+        st.markdown(
+            f"<div class='vale-msg {cls}'>"
+            f"<div class='vale-role'>{_esc(role.upper())}</div>"
+            f"<div>{_esc(m.get('text',''))}</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Auto-scroll to bottom (each rerun)
+    components_html("""
+        <script>
+        const box = window.parent.document.getElementById('vale-chatbox');
+        if (box) { box.scrollTop = box.scrollHeight; }
+        </script>
+    """, height=0, width=0)
+    
+    autoscroll_chatbox()
+    
+    # Input row (hard-cornered)
+    with st.container():
+        col = st.container()
+        st.markdown("<div class='vale-input-row'>", unsafe_allow_html=True)
+        user_txt = st.text_input("Message", key="vale_chat_input", label_visibility="collapsed", placeholder="Type to Vale…")
+        send = st.button("Send")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    if send and user_txt.strip():
+        add_chat("user", user_txt.strip())
+        # Minimal echo; wire this to your app events if you want
+        add_chat("assistant", "Noted. I’ll factor that into the next plan/render.")
+        st.experimental_rerun()
+       
+
+
+VALE_OPENERS = [
+  "so…", "okay—", "alright,", "cool—", "nice—", "gotcha.", "heads up—",
+]
+VALE_HEDGES = [
+  "kinda", "a touch", "a hair", "slightly", "pretty", "fairly",
+]
+def _condense_numbers(txt:str)->str:
+    # turn things like "(~+2.3 dB)" into "+2 dB" for vibe
+    return re.sub(r"([+\-]?\d+(\.\d+)?)\s*dB", lambda m: f"{round(float(m.group(1)))} dB", txt)
+
+def vale_say(message: str) -> str:
+    opener = random.choice(VALE_OPENERS)
+    msg = message.strip()
+    # remove stiff lead-ins
+    msg = re.sub(r'^(analysis|result|note)[:\- ]+', '', msg, flags=re.I)
+    msg = _condense_numbers(msg)
+    return f"{opener} {msg[0].lower()}{msg[1:] if len(msg)>1 else ''}"
 
 
 
