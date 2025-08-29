@@ -433,7 +433,10 @@ in_path = st.session_state["in_path"]
 with right:
 
     container = st.container()         # anchor
-    render_chat(container) 
+    render_chat(container,
+    state_key="chat",
+    height=420,
+    avatar_img_b64=logo_path ) 
 
     # ANALYZE
     if analyze_click or "analysis" not in st.session_state:
