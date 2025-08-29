@@ -188,14 +188,14 @@ h2 { font-size: 16px !important; }
 
 
 # Top bar (plugin-like)
-st.markdown(
-    "<div class='vale-nav'>"
-    "<div style='display:flex; position: absolute; top: 0px; gap:10px; width:100%;'>"
-    "<div style='font-size:40px; font-weight:600; text-align: top;'>Vale</div>"
-    "<div style='opacity:.65; text-align: centre;'>Mastering Engineer</div>"
-    "</div>"
-    "<div style='opacity:.6; text-align: centre;'>You create ideas, we make them real.</div>"
-    "</div>",
+st.markdown("""
+    <div class='vale-nav'>
+        <div style='display:flex; position: absolute; top: 0px; gap:10px; width:100%;'>
+            <div style='font-size:40px; font-weight:600; text-align: top;'>Vale</div>
+            <div style='opacity:.65; text-align: centre;'>Mastering Engineer</div>
+        </div>
+        <div style='opacity:.6; text-align: centre;'>You create ideas, we make them real.</div>
+    </div>""",
     unsafe_allow_html=True
 )
 
