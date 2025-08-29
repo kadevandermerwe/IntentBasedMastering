@@ -137,7 +137,9 @@ st.json(analysis)
 # ---- Tonal balance line graph (8-band)
 # ---- Tonal balance (EQ-style, readable)
 # ---- Tonal balance (8 bands) with fallback compute + EQ-style plot
+# ---- Tonal balance (8 bands) with fallback compute + EQ-style plot
 import numpy as np
+
 
 BAND_ORDER  = ["sub","low_bass","high_bass","low_mids","mids","high_mids","highs","air"]
 BAND_LABELS = {
@@ -225,6 +227,7 @@ if bands:
                "This visualizes balance (like an EQ), not absolute EQ settings.")
 else:
     st.info("No 8-band data available.")
+
 
 
 # ---------------- Pre-clean corrective EQ (optional) ----------------
