@@ -3,6 +3,7 @@ import streamlit as st
 from streamlit.components.v1 import html as components_html
 import html as pyhtml
 import random, re
+from app import logo_path
 
 def _esc(s: str) -> str:
     return pyhtml.escape(s or "")
@@ -73,8 +74,7 @@ def render_chat(container, state_key: str = "chat", height: int = 420):
         }}
         .avatar {{
           width:38px; height:38px; border-radius:50%;
-          background: radial-gradient(60% 60% at 30% 30%, rgba(148,162,255,.25), rgba(148,162,255,.08));
-          border: 1px solid var(--border);
+          background: src({logo_path});
           display:flex; align-items:center; justify-content:center;
           color: var(--accent); font-weight:700;
         }}
@@ -102,10 +102,6 @@ def render_chat(container, state_key: str = "chat", height: int = 420):
       <div class="panel">
         <div class="hdr">
           <div class="avatar">V</div>
-          <div>
-            <h3 class="hdr-title">Vale · Console</h3>
-            <div class="hdr-sub">always on your team</div>
-          </div>
         </div>
 
         <div id="vale-box" class="box">
