@@ -151,8 +151,9 @@ body {
 .block-container {
 
     margin-top: -3rem;
-    padding-top: -2rem;
-    max-width: 100%;
+    padding:0;
+    padding-right:3rem;
+    padding-left:3rem;
     
     }
 
