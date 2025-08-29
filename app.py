@@ -42,6 +42,52 @@ def _vale_altair_theme():
 alt.themes.register("vale_light_cli", _vale_altair_theme)
 alt.themes.enable("vale_light_cli")
 
+import streamlit as st
+from streamlit.components.v1 import html as st_html
+
+# --- Nuke Streamlit top spacing aggressively ---
+st.markdown("""
+<style>
+/* 1) Hide Streamlit header/toolbar */
+header[data-testid="stHeader"]{display:none !important;}
+div[data-testid="stToolbar"]{display:none !important;}
+
+/* 2) Remove top padding on every app wrapper */
+[data-testid="stAppViewContainer"] { padding-top: 0 !important; }
+main .block-container { padding-top: 0 !important; }
+
+/* 3) Prevent first-child margin collapse (the usual invisible culprit) */
+main .block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+main .block-container h1:first-child,
+main .block-container h2:first-child,
+main .block-container p:first-child { margin-top: 0 !important; }
+
+/* Optional: zero page/body margins so nothing pushes content down */
+html, body { margin:0 !important; padding:0 !important; }
+</style>
+""", unsafe_allow_html=True)
+
+# Belt-and-suspenders: force after-render zeroing (some themes re-add padding)
+st_html("""
+<script>
+(function(){
+  const tryFix = () => {
+    const doc = window.parent?.document || document;
+    const head = doc.querySelector('header[data-testid="stHeader"]');
+    if (head) head.style.display = 'none';
+    const bc = doc.querySelector('main .block-container');
+    if (bc) bc.style.paddingTop = '0px';
+    const first = bc?.querySelector(':scope > div:first-child');
+    if (first){ first.style.marginTop='0px'; first.style.paddingTop='0px'; }
+  };
+  tryFix();
+  // Re-apply after reruns
+  new MutationObserver(tryFix).observe(document.body, { childList:true, subtree:true });
+})();
+</script>
+""", height=0)
+
+
 
 # --- remove Streamlit top chrome & padding, zero out h1 margins, pin our navbar ---
 st.markdown("""
