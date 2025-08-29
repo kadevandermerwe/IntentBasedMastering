@@ -105,7 +105,7 @@ def render_chat(
           height: {height-90}px;  /* scrollable area */
           -ms-overflow-style: none; /* IE and Edge */
           scrollbar-width: none; /* Hides scrollbar */
-          overflow-y: auto;
+          overflow-y: scroll;
           padding: 8px;
         }}
         .msg {{ border: 1px dashed var(--border); border-radius: 4px;
