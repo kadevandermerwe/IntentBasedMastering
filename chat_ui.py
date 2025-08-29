@@ -111,7 +111,7 @@ def render_chat(container, state_key: str = "chat", height: int = 420):
     <body>
       <div class="panel">
         <div class="hdr">
-          <div class="avatar"><img src="f{logo_path}"</div>
+          <div class="avatar"><img src="f{logo_path}" width="50"></div>
         </div>
         <div id="vale-box" class="box">
           {rows_html}
