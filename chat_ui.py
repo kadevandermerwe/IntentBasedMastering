@@ -131,10 +131,6 @@ def render_chat(
       <div class="panel">
         <div class="hdr">
           <div class="avatar">{avatar_inner}</div>
-          <div>
-            <div class="hdr-title">{_esc(title)}</div>
-            <div class="hdr-sub">{_esc(subtitle)}</div>
-          </div>
         </div>
         <div id="vale-box" class="box">
           {rows_html}
