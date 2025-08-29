@@ -111,7 +111,7 @@ body {margin: auto;
 
 
 /* Headings */
-h1,h2,h3,h4,p1,p2 { color: var(--ink); margin: 0 0 6px 0; letter-spacing:.2px; }
+h1,h2,h3,h4,p1,p2,label,button { color: var(--ink); margin: 0 0 6px 0; letter-spacing:.2px; }
 h1 { font-size: 24px !important; }
 h2 { font-size: 16px !important; }
 
