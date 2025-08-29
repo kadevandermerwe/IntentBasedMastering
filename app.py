@@ -138,15 +138,13 @@ html, body, .block-container {
   background: var(--bg) !important;
   color: var(--ink) !important;
   font-family: var(--mono) !important;
-  margin:0 !important;
-  padding:0 !important;
   
 }
 
 body {
     margin: auto;
     padding-top: -2rem;
-    max-width: 90%;
+    max-width: 70%;
     
     }
 
