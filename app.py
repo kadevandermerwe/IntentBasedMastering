@@ -162,6 +162,7 @@ body {
     margin: auto;
     padding-top: -2rem;
     max-width: 70%;
+    overflow:visible;
     
     }
 
