@@ -233,7 +233,7 @@ st.markdown("""
             <div style='font-size:40px; font-weight:600;'>Vale</div>
             <div style='opacity:.65;'>Mastering Engineer</div>
         </div>
-        <div style='opacity:.6; text-align: centre;'>You create ideas, we make them real.</div>
+        <div style='opacity:.6;'>You create ideas, we make them real.</div>
     </div>""",
     unsafe_allow_html=True
 )
