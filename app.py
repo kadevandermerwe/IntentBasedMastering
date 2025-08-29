@@ -67,7 +67,7 @@ html, body, .block-container {
   font-family: var(--mono) !important;
 }
 
-<style>
+
 /* Avatar */
 .vale-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 
@@ -102,7 +102,7 @@ html, body, .block-container {
 
 /* small subtitle under heading */
 .vale-sub { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
-</style>
+
 
 /* Headings */
 h1,h2,h3 { color: var(--ink); margin: 0 0 6px 0; letter-spacing:.2px; }
