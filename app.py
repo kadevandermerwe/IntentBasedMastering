@@ -1,7 +1,7 @@
 # app.py
-import os, json
+import os, json, re, shutil, uuid
+import pandas as pd
 import streamlit as st
-import shutil, re
 
 from utils import session_tmp_path
 from dsp import (
@@ -9,6 +9,7 @@ from dsp import (
     render_adaptive_from_plans,
     derive_section_plans_from_single,
     detect_resonances_simple,
+    BAND_NAMES,  # for ordered tonal-balance plotting
 )
 from ai import llm_plan
 from diagnostics import validate_plan
@@ -78,21 +79,21 @@ if uploaded is None:
     st.info("Upload a premaster to begin.")
     st.stop()
 
+# Make sure we have a stable per-session base dir (persist in session_state)
+if "base_dir" not in st.session_state:
+    st.session_state["base_dir"] = session_tmp_path()
+base = st.session_state["base_dir"]
+
 # Only (re)write if a new file arrives
-if (
-    "uploaded_name" not in st.session_state
-    or uploaded.name != st.session_state["uploaded_name"]
-):
+if ("uploaded_name" not in st.session_state) or (uploaded.name != st.session_state["uploaded_name"]):
     st.session_state["uploaded_name"] = _safe_name(uploaded.name)
 
-    # Write to /tmp once, streaming (no giant .read())
-    from utils import session_tmp_path
-    base = session_tmp_path()
     in_path = os.path.join(base, st.session_state["uploaded_name"])
     try:
         uploaded.seek(0)  # make sure pointer is at start
         with open(in_path, "wb") as f:
-            shutil.copyfileobj(uploaded, f, length=16 * 1024 * 1024)  # 1MB chunks
+            # stream to disk to avoid giant reads; ~1MB chunks
+            shutil.copyfileobj(uploaded, f, length=1 * 1024 * 1024)
         uploaded.seek(0)
     except Exception as e:
         st.error("❌ Failed writing the uploaded file to /tmp.")
@@ -114,8 +115,9 @@ with cols[1]:
     gen_click = st.button("Generate Adaptive (3 Variations)")
 with cols[2]:
     if st.button("Reset file"):
-        for k in ("uploaded_name", "uploaded_bytes", "analysis", "in_path"):
+        for k in ("uploaded_name", "analysis", "in_path"):
             st.session_state.pop(k, None)
+        # keep base_dir so temp files remain accessible this session
         st.experimental_rerun()
 
 # ---------------- Analysis (run once or on demand) ----------------
@@ -130,8 +132,18 @@ if analyze_click or "analysis" not in st.session_state:
 analysis = st.session_state["analysis"]
 st.subheader("Analysis")
 st.json(analysis)
-st.subheader("Tonal balance (8 bands)")
-st.json(analysis.get("bands_pct_8", {}))
+
+# ---- Tonal balance line graph (8-band)
+bands = analysis.get("bands_pct_8", {})
+if bands:
+    # Ensure the order follows BAND_NAMES
+    ordered_vals = [bands.get(name, 0.0) for name in BAND_NAMES]
+    df = pd.DataFrame({"Band": BAND_NAMES, "Share (%)": ordered_vals})
+    st.subheader("Tonal balance (8 bands)")
+    st.line_chart(df.set_index("Band"))
+else:
+    st.subheader("Tonal balance (8 bands)")
+    st.json(bands)
 
 # ---------------- Pre-clean corrective EQ (optional) ----------------
 master_input_path = in_path
@@ -167,18 +179,22 @@ st.sidebar.write(f"🧪 Secrets has key: {'yes' if st.secrets.get('OPENAI_API_KE
 st.sidebar.write(f"🧪 Env has key: {'yes' if os.environ.get('OPENAI_API_KEY') else 'no'}")
 st.sidebar.write(f"🧪 Using key length: {len(api_key) if api_key else 0}")
 
-# ---------------- Variant directives ----------------
+# ---------------- Variation directives ----------------
+# Each variation gets a distinct seed + note to strongly encourage different plans
 variant_notes = [
     "Variant A – slightly darker, preserve transients, keep hats smooth.",
     "Variant B – neutral mid focus, tighten lows a touch, gentle presence.",
     "Variant C – a hair brighter, careful with harshness, avoid pumping.",
 ]
 
-def get_sectioned_plans(variant_idx: int):
-    """Ask the LLM for one plan (may be single or sectioned); normalize to verse/drop."""
+def get_sectioned_plans(variant_idx: int, seed: str):
+    """
+    Ask the LLM for one plan (may be single or sectioned); normalize to verse/drop.
+    Adds a per-variation seed to encourage distinct results.
+    """
     note = variant_notes[variant_idx]
     v_prompt = (prompt_txt or "").strip()
-    v_prompt = f"{v_prompt}\n{note}" if v_prompt else note
+    v_prompt = f"{v_prompt}\n{note}\nVariation seed: {seed}. Make choices distinct from other variations; different EQ emphasis, thresholds, and saturation rationale."
 
     plan, msg = llm_plan(
         analysis=analysis,                 # use latest analysis (post-corrective if applied)
@@ -222,10 +238,14 @@ if gen_click:
             st.exception(e)
             detected_notches = []
 
+    # Ensure we have a base dir in scope during render (fixes NameError)
+    base = st.session_state.get("base_dir", session_tmp_path())
+
     for i in range(3):
         st.markdown(f"## Variation {i+1}")
         try:
-            sectioned, status = get_sectioned_plans(i)
+            seed = f"{uuid.uuid4().hex[:8]}-{i+1}"
+            sectioned, status = get_sectioned_plans(i, seed)
             if not sectioned:
                 st.error(f"LLM plan unavailable for Variation {i+1}.")
                 continue
@@ -261,7 +281,7 @@ with st.expander("Debug"):
     st.write({
         "in_path_exists": os.path.exists(in_path),
         "in_path": in_path,
-        "bytes_len": len(st.session_state.get("uploaded_bytes", b"")),
+        "base_dir": st.session_state.get("base_dir"),
         "adaptive_only": True,
         "reference_txt": reference_txt,
         "reference_weight": reference_weight,
