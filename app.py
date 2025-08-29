@@ -124,13 +124,14 @@ st.markdown("""
 .vale-nav {
   display:flex;
   justify-content:space-between;
-  position: sticky;     /* stays at top on scroll */
+  position: absolute;     /* stays at top on scroll */
   top: 0;
   z-index: 1000;
   margin: 0 !important;
   padding:10px;
   background: #F7F9FC;                  /* your light panel */
   border-bottom: 1px solid rgba(0,0,0,.08);
+  align-items:centre;
 }
 
 /* Page canvas */
