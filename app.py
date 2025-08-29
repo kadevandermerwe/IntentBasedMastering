@@ -481,7 +481,6 @@ with right:
             st.stop()
 
     # Render chat so far
-    render_chat()
     render_chatbox()
 
     # Tonal balance visualizer
