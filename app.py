@@ -143,6 +143,7 @@ st.markdown("""
   z-index: 1000;
   margin: 0 !important;
   padding-bottom: 10px;
+  padding-top:10px;
   padding-left:30px;
   padding-right:30px;
   background: #Fff;                  /* your light panel */
@@ -166,8 +167,6 @@ html, body, .block-container {
 body {
     margin-top:-2rem;
     padding-top: -2rem;
-    padding-right:30rem;
-    padding-left:3rem;
     
     }
 
