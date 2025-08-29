@@ -172,6 +172,7 @@ body {
 .block-container {
 
     margin-top: -4rem;
+    margin:auto;
     padding:0;
     width:70%;
     
