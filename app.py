@@ -19,7 +19,7 @@ from dsp import (
 from ai import llm_plan
 from diagnostics import validate_plan
 from corrective import llm_corrective_cleanup, apply_corrective_eq
-from chat_ui import render_chat
+from chat_ui import render_chat, add_chat
 
 # ---------------- Page / Theme ----------------
 st.set_page_config(page_title="Vale Mastering Assistant", page_icon="🎛️", layout="wide")
