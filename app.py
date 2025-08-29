@@ -182,9 +182,9 @@ h2 { font-size: 16px !important; }
 
 # Top bar (plugin-like)
 st.markdown(
-    "<div class='vale-panel' style='display:flex; align-items:center; justify-content:space-between;'>"
+    "<div class='vale-panel' style='display:flex; align-items:center; justify-content:space-between; margin: 0;'>"
     "<div style='display:flex; gap:10px; align-items:center;'>"
-    "<div style='font-size:18px; font-weight:600;'>Vale</div>"
+    "<div style='font-size:40px; font-weight:600;'>Vale</div>"
     "<div style='opacity:.65'>Mastering Engineer</div>"
     "</div>"
     "<div style='opacity:.6'>You create ideas, we make them real.</div>"
