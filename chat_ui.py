@@ -36,16 +36,11 @@ def render_chat(
     container,
     state_key: str = "chat",
     height: int = 420,
-    avatar_img_b64: str | None = None,
-    avatar_text: str = "V",
+    avatar_img_b64: str | None = None
 ):
-    """
-    Renders a single chat panel with autoscroll inside `container`.
-    Uses an iframe so layout is consistent and not affected by Streamlit rerenders.
-    """
     st.session_state.setdefault(state_key, [])
     if not st.session_state[state_key]:
-        add_chat("assistant", vale_say("upload a premaster when you’re ready—i’ll give it a quick once-over."), state_key)
+        add_chat("assistant", vale_say("nice— upload a premaster when you’re ready—i’ll give it a quick once-over."), state_key)
 
     msgs = st.session_state[state_key]
 
@@ -55,110 +50,89 @@ def render_chat(
         role = (m.get("role") or "assistant").lower()
         cls = "assistant" if role != "user" else "user"
         rows_html.append(
-            """
+            f"""
             <div class="msg {cls}">
-              <div class="msg-role">{role}</div>
-              <div class="msg-body">{text}</div>
+              <div class="msg-role">{_esc(role)}</div>
+              <div class="msg-body">{_esc(m.get('text',''))}</div>
             </div>
-            """.format(
-                cls=cls,
-                role=pyhtml.escape(role),
-                text=pyhtml.escape(m.get("text", "")),
-            )
+            """
         )
     rows_html = "\n".join(rows_html)
 
-    # Avatar element: either image or letter
+    # Avatar element
     if avatar_img_b64:
-        avatar_inner = '<img src="data:image/png;base64,{b64}" style="width:100%;height:100%;border-radius:0%;">'.format(b64=avatar_img_b64)
+        avatar_inner = f'<img src="data:image/png;base64,{avatar_img_b64}" style="width:100%;height:100%;border-radius:50%;">'
     else:
-        avatar_inner = pyhtml.escape(avatar_text or "V")
+        avatar_inner = "V"
 
-    # Use a plain string with a neutral placeholder for the avatar to avoid f-string brace issues
-    html_tpl = """
+    html = f"""
     <html>
     <head>
       <meta charset="utf-8" />
       <style>
         :root {{
-          --ink: #1b1f23;
-          --ink-dim: #5b6570;
-          --panel: #ffffff;
-          --border: #e6eaf0;
-          --accent: #5EA2FF;
-          --accent-ghost: rgba(94,162,255,.18);
+          --ink: #E7EEF8;
+          --ink-dim: #A9B6C9;
+          --panel: #111823;
+          --border: #1E2530;
+          --vale: #5EA2FF;
+          --violet: #8B7CFF;
         }}
         * {{ box-sizing: border-box; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }}
         body {{ margin:0; background:transparent; }}
 
-        .panel {{ padding: 10px; }}
-        .box::-webkit-scrollbar {{ display: none; }}
-        .hdr {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }}
-        .avatar {{ width:150px; }}
-        .hdr-title {{ margin:0; font-size:16px; font-weight:800; color: var(--ink); }}
-        .hdr-sub {{ font-size:12px; color: var(--ink-dim); }}
-
+        .hdr {{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }}
+        .avatar {{
+          width:38px;height:38px;border-radius:50%;
+          background: radial-gradient(120% 120% at 25% 25%, rgba(94,162,255,.35), rgba(139,124,255,.20));
+          border:1px solid #2C3440;
+        }}
         .box {{
-          height: {scroll_h}px;  /* scrollable area */
-          -ms-overflow-style: none; /* IE and Edge */
-          scrollbar-width: none; /* Firefox */
-          overflow-y: scroll;
-          padding: 8px;
-          margin-bottom:auto;
+          height: {height-12}px;
+          overflow-y: auto;
+          padding-right: 4px;
         }}
-        .msg {{
-          border: 1px dashed var(--border); border-radius: 4px;
-          padding: 8px 10px; margin: 0 0 8px 0;
-        }}
-        .msg.user {{ background: transparent; }}
-        .msg.assistant {{ background: transparent; }}
+        /* Hide scrollbar visuals but keep scroll */
+        .box::-webkit-scrollbar {{ width: 0; height: 0; }}
+        .msg {{ border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; margin: 0 0 8px 0; }}
+        .msg.user {{ background: rgba(139,124,255,.06); }}
+        .msg.assistant {{ background: rgba(94,162,255,.06); }}
         .msg-role {{ font-size: 10px; color: var(--ink-dim); margin-bottom: 4px; letter-spacing: .3px; text-transform: uppercase; }}
-        .msg-body {{ font-size: 13px; color: var(--ink); line-height: 1.35; }}
+        .msg-body {{ font-size: 13px; color: var(--ink); line-height: 1.38; }}
       </style>
     </head>
     <body>
-      <div class="panel">
-        <div class="hdr">
-          <div class="avatar"></div>
-          <div class="avatar">@@VALE_AVATAR@@</div>
-          <div class="avatar"></div>
-        </div>
-        <div id="vale-box" class="box">
-          {rows}
-        </div>
+      <div class="hdr">
+        <div class="avatar">{avatar_inner}</div>
       </div>
-
+      <div id="vale-box" class="box">
+        {rows_html}
+      </div>
       <script>
         const box = document.getElementById('vale-box');
-        function scrollDown() {{
-          try {{ box.scrollTop = box.scrollHeight; }} catch(e) {{}}
-        }}
+        function scrollDown(){ try {{ box.scrollTop = box.scrollHeight; }} catch(e){{}} }
         scrollDown(); setTimeout(scrollDown, 50); setTimeout(scrollDown, 150);
-        try {{
-          new MutationObserver(scrollDown).observe(box, {{childList:true, subtree:true}});
-        }} catch(e) {{}}
+        try {{ new MutationObserver(scrollDown).observe(box, {{childList:true, subtree:true}}); }} catch(e){{}}
       </script>
     </body>
     </html>
-    """.format(
-        scroll_h=height - 90,
-        rows=rows_html
-    )
-
-    # Inject avatar markup safely
-    html = html_tpl.replace("@@VALE_AVATAR@@", avatar_inner)
+    """
 
     with container:
+        # wrapper makes the iframe + input feel like one element
+        st.markdown("<div class='vale-chat-wrap'>", unsafe_allow_html=True)
+        st.markdown("<div class='iframe-band'>", unsafe_allow_html=True)
         components_html(html, height=height, scrolling=False)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        # Input form (in Streamlit space)
         with st.form(key="vale_chat_form", clear_on_submit=True):
             user_txt = st.text_input("Message", label_visibility="collapsed", placeholder="Type to Vale…")
             sent = st.form_submit_button("Send")
+        st.markdown("</div>", unsafe_allow_html=True)
 
         if sent and user_txt.strip():
             add_chat("user", user_txt.strip(), state_key)
-            # simple friendly echo; swap for real tool calls
             add_chat("assistant", vale_say("cool—i’ll fold that in next pass."), state_key)
             st.experimental_rerun()
+
 

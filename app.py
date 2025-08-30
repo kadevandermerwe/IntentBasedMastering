@@ -177,16 +177,17 @@ def _vale_altair_theme():
         "config": {
             "background": "transparent",
             "axis": {
-                "labelColor": "#C9D2E0",
-                "titleColor": "#C9D2E0",
-                "gridColor": "#27303A",
-                "domainColor": "#2B3038",
+                "labelColor": "#A9B6C9",
+                "titleColor": "#A9B6C9",
+                "gridColor": "#1E2530",
+                "domainColor": "#1E2530",
             },
             "view": {"stroke": "transparent"},
             "line": {"strokeWidth": 2, "color": "#5EA2FF"},
             "point": {"filled": True, "size": 60, "color": "#8B7CFF"},
         }
     }
+
 alt.themes.register("vale_dark", _vale_altair_theme)
 alt.themes.enable("vale_dark")
 
@@ -226,48 +227,145 @@ st.set_page_config(page_title="Vale Mastering Assistant", page_icon=LOGO_PATH, l
 st.markdown("""
 <style>
 :root{
-  --bg:#0E1116; --panel:#15181D; --panel-hi:#1A1D22;
-  --ink:#E9EDF5; --ink-dim:#9BA7B6; --hair:#2B3038;
-  --vale:#5EA2FF; --vale-ghost:rgba(94,162,255,.12);
-  --purple:#8B7CFF; --danger:#FF5C7A; --radius:14px;
+  /* Vale Dark (audio-console) */
+  --bg:        #0B1016;   /* deep blue-black */
+  --panel:     #111823;   /* cards */
+  --panel-hi:  #0F1420;   /* chat input band / nav strip */
+  --hair:      #1E2530;   /* ultra-light borders */
+  --ink:       #E7EEF8;   /* primary text */
+  --ink-dim:   #A9B6C9;   /* secondary */
+
+  /* Accents (only these 3 + rare danger) */
+  --vale:      #5EA2FF;   /* blue */
+  --vale-ghost:#0F2748;   /* translucent blue field */
+  --violet:    #8B7CFF;   /* blue-purple */
+  --sky:       #A9C8FF;   /* muted light blue */
+  --danger:    #FF5C7A;   /* rare red */
+
+  --radius:    14px;
 }
-#MainMenu, header, footer {display:none !important;}
-[data-testid="stAppViewContainer"] > .main{padding-top:0 !important;}
-main .block-container{padding-top:0 !important;}
-html, body{background:var(--bg) !important;}
-.block-container{background:transparent !important;}
-/* navbar */
-.vale-nav{position:sticky;top:0;z-index:1000;display:flex;justify-content:center;align-items:center;gap:12px;padding:10px 0 12px;background:rgba(14,17,22,.72);backdrop-filter:blur(8px);border-bottom:1px solid #161A20;}
-.vale-nav .pill{width:44px;height:44px;border-radius:50%;background:radial-gradient(120% 120% at 20% 20%, rgba(94,162,255,.28), rgba(139,124,255,.18));border:1px solid #2D3340;box-shadow:0 0 22px rgba(94,162,255,.28);}
-.vale-shell{width:min(1200px,70vw);margin:12px auto 0;}
-.vale-card{background:linear-gradient(180deg,var(--panel) 0%,#12151A 120%);border:1px solid var(--hair);border-radius:var(--radius);box-shadow:0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.03);padding:16px;}
-.stTextInput input,.stTextArea textarea{background:#0F1318;color:var(--ink);border:1px solid var(--hair);border-radius:10px;}
-.stButton>button{background:#10151B;color:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:8px 12px;}
-.stButton>button:hover{border-color:var(--vale);box-shadow:0 0 0 3px var(--vale-ghost);}
-[data-testid="stSlider"] [role="slider"]{background:var(--vale) !important;}
-/* status bar */
-.vale-status-wrap{position:sticky;top:64px;z-index:999;backdrop-filter:saturate(120%) blur(8px);background:linear-gradient(180deg,#0F1319 0%, #0C1016 120%);border-bottom:1px solid #242A33;}
-.vale-status{max-width:70vw;margin:0 auto;padding:8px 12px;color:#DCE6F6;font-size:12px;letter-spacing:.25px;display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;}
-.vale-dot{width:6px;height:6px;border-radius:50%;background:#5EA2FF;box-shadow:0 0 10px rgba(94,162,255,.7);}
-.vale-breadcrumb{overflow:hidden;text-overflow:ellipsis;}
-/* KPI chips */
-.kpi-row{display:flex;flex-wrap:wrap;gap:10px;margin:.35rem 0;}
-.kpi{min-width:116px;padding:10px 12px;border-radius:12px;background:linear-gradient(180deg,#171B21 0%,#12161C 120%);border:1px solid #2B3038;box-shadow:0 12px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);}
-.kpi .lab{font-size:11px;letter-spacing:.25px;color:#9BA7B6;text-transform:uppercase;}
-.kpi .val{font-size:18px;font-weight:750;color:#E9EDF5;line-height:1.2}
-.kpi.ok{box-shadow:inset 0 0 0 1px rgba(94,162,255,.10),0 10px 22px rgba(94,162,255,.10);}
-.kpi.warn{box-shadow:inset 0 0 0 1px rgba(255,92,122,.10),0 10px 22px rgba(255,92,122,.08);}
-.kpi .pill{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:999px;font-size:10px;letter-spacing:.2px;color:#BFD7FF;background:rgba(94,162,255,.14);border:1px solid #2D3340;}
-/* compare strip */
+
+/* Subtle focus ring color tune */
+:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(139,124,255,.18) !important; }
+
+/* Lighter hairlines on hover for inputs/buttons */
+.stTextInput input:hover, .stTextArea textarea:hover, .stButton>button:hover{
+  border-color: #2A3442;
+}
+
+
+/* Kill Streamlit chrome / spacing */
+#MainMenu, header, footer { display:none !important; }
+[data-testid="stAppViewContainer"] > .main { padding-top:0 !important; }
+main .block-container { padding-top:0 !important; }
+
+/* Page */
+html, body { background: var(--bg) !important; color: var(--ink); }
+.block-container { background: transparent !important; }
+
+/* Nav */
+.vale-nav{
+  position: sticky; top:0; z-index:1000;
+  display:flex; justify-content:center; align-items:center;
+  padding:12px 0 10px;
+  background: linear-gradient(180deg, rgba(10,15,22,.85), rgba(10,15,22,.60));
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--hair);
+}
+.vale-nav .pill{
+  width:44px;height:44px;border-radius:50%;
+  background: radial-gradient(120% 120% at 25% 25%, rgba(94,162,255,.35), rgba(139,124,255,.20));
+  border:1px solid #2C3440; box-shadow:0 0 22px rgba(94,162,255,.25);
+}
+
+/* Shell width ~70% */
+.vale-shell { width:min(1200px, 70vw); margin: 12px auto 0; }
+
+/* Cards */
+.vale-card{
+  background: linear-gradient(180deg, var(--panel) 0%, #0C121B 120%);
+  border:1px solid var(--hair); border-radius: var(--radius);
+  box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.03);
+  padding:16px;
+}
+
+/* Inputs / buttons */
+.stTextInput input, .stTextArea textarea{
+  background: var(--panel-hi);
+  color: var(--ink);
+  border:1px solid var(--hair);
+  border-radius:10px;
+}
+.stTextInput input:focus, .stTextArea textarea:focus{
+  outline: none; border-color: var(--vale);
+  box-shadow: 0 0 0 3px rgba(94,162,255,.15);
+}
+.stButton>button{
+  background: #0F1621; color: var(--ink);
+  border:1px solid var(--hair); border-radius:10px; padding:8px 12px;
+}
+.stButton>button:hover{ border-color: var(--vale); box-shadow: 0 0 0 3px rgba(94,162,255,.15); }
+
+/* Sliders */
+[data-testid="stSlider"] [role="slider"]{ background: var(--vale) !important; }
+[data-testid="stSlider"] .st-ce{ color: var(--ink-dim) !important; }
+
+/* === Chat wrapper (makes input feel attached to console) === */
+.vale-chat-wrap{
+  border:1px solid var(--hair);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel) 0%, #0C121B 120%);
+  box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.03);
+  padding: 12px;
+}
+.vale-chat-wrap .stTextInput input{
+  background: var(--panel-hi);
+  border:1px solid var(--hair);
+}
+.vale-chat-wrap .stButton>button{
+  background:#101826; border-color: var(--hair);
+}
+
+/* Merge the chat iframe + input visually */
+.vale-chat-wrap .iframe-band{
+  border:1px solid var(--hair);
+  border-radius: 10px;
+  background: var(--panel-hi);
+  padding:10px;
+  margin-bottom:10px;
+}
+
+/* ===== Status ticker ===== */
+.vale-status-wrap{
+  position:sticky; top:64px; z-index:999;
+  backdrop-filter:saturate(120%) blur(8px);
+  background: linear-gradient(180deg,#0E1520 0%, #0B1119 120%);
+  border-bottom:1px solid var(--hair);
+}
+.vale-status{
+  max-width: 70vw; margin: 0 auto; padding: 8px 12px;
+  color:var(--sky); font-size:12px; letter-spacing:.25px;
+  display:flex; align-items:center; gap:8px; white-space:nowrap; overflow:hidden;
+}
+.vale-dot{ width:6px; height:6px; border-radius:50%; background:var(--vale); box-shadow:0 0 10px rgba(94,162,255,.7);}
+.vale-breadcrumb{overflow:hidden; text-overflow:ellipsis;}
+
+/* ===== Compare strip ===== */
 .compare-strip{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0 6px;}
-.compare-card{width:280px;padding:10px;border-radius:12px;background:linear-gradient(180deg,#171B21 0%,#12161C 120%);border:1px solid #2B3038;box-shadow:0 10px 26px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.03);}
-.cc-title{font-size:12px;color:#AAB6C6;margin-bottom:6px;display:flex;justify-content:space-between;}
+.compare-card{
+  width: 280px; padding:10px; border-radius:12px;
+  background: linear-gradient(180deg, var(--panel) 0%, #0C121B 120%);
+  border:1px solid var(--hair);
+  box-shadow:0 10px 26px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.03);
+}
+.cc-title{font-size:12px;color:var(--ink-dim);margin-bottom:6px;display:flex;justify-content:space-between;}
 .cc-kpis{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0;}
-.cc-pill{font-size:11px;color:#E9EDF5;padding:3px 7px;border-radius:999px;border:1px solid #2D3340;background:rgba(94,162,255,.12);}
-.cc-pill.warn{background:rgba(255,92,122,.12);color:#FFD3DA;border-color:rgba(255,92,122,.24);}
+.cc-pill{font-size:11px;color:var(--ink);padding:3px 7px;border-radius:999px;border:1px solid #2D3340;background:rgba(94,162,255,.14);}
+.cc-pill.warn{background:rgba(255,92,122,.12); color:#FFD3DA; border-color:rgba(255,92,122,.24);}
 .cc-audio{margin-top:6px;}
 </style>
 """, unsafe_allow_html=True)
+
 
 # Navbar + status
 st.markdown(f"""<div class="vale-nav"><img src="data:image/png;base64,{LOGO_B64}" alt="Vale" height="54"></div>""", unsafe_allow_html=True)
@@ -322,12 +420,13 @@ def tonal_chart(df: pd.DataFrame):
 chat_box = st.container()
 render_chat(chat_box, state_key="chat", height=420, avatar_img_b64=AVATAR_B64)
 
-# Action row under chat
-act_col1, act_col2, _ = st.columns([0.22, 0.30, 0.48])
+# Action row aligned to chat
+act_col1, act_col2, _ = st.columns([0.26, 0.30, 0.44])
 with act_col1:
     analyze_click = st.button("Analyze")
 with act_col2:
     gen_click = st.button("Render 3 Variations")
+
 
 # -------------------------- Session Tools --------------------------
 with st.expander("Session Tools", expanded=True):
