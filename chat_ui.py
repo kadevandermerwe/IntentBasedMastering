@@ -27,7 +27,7 @@ def vale_say(message: str) -> str:
     return f"{opener} {msg[0].lower()}{msg[1:] if len(msg)>1 else ''}"
 
 # ---------- public API ----------
-def add_chat(role: str, text: str, state_key: str = "chat", *, html: bool = False, attachments=["type":"img","src":None,"alt":""]):
+def add_chat(role: str, text: str, state_key: str = "chat", *, html: bool = False, attachments=[{"type":"img","src":None,"alt":""}]):
     """Append a chat message. Set html=True to allow inline HTML (e.g., <img> thumbnails)."""
     st.session_state.setdefault(state_key, [])
     st.session_state[state_key].append(
