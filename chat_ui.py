@@ -181,7 +181,7 @@ def render_chat(
       </div>
       <script>
         const box = document.getElementById('vale-box');
-        function scrollDown(){ try{{ box.scrollTop = box.scrollHeight; }}catch(e){{}} }
+        function scrollDown(){ try:{{ box.scrollTop = box.scrollHeight; }}catch(e){{}} }
         scrollDown(); setTimeout(scrollDown, 50); setTimeout(scrollDown, 150);
         try {{ new MutationObserver(scrollDown).observe(box, {{childList:true, subtree:true}}); }} catch(e) {{}}
       </script>
